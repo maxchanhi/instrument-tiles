@@ -1,0 +1,25 @@
+{
+  "name": "instrument-tiles",
+  "version": "1.0.0",
+  "description": "A web-based pedagogical music game for practicing instrument intonation and rhythm",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "music",
+    "game",
+    "education",
+    "midi",
+    "pitch-detection"
+  ],
+  "author": "Max Chan",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
