@@ -354,6 +354,8 @@ class InstrumentTilesGame {
         oscillator.stop(this.synthContext.currentTime + duration);
     }
     
+
+
     /**
      * Update note display during preview
      */
@@ -623,31 +625,6 @@ class InstrumentTilesGame {
             flashEl.style.opacity = '0';
             setTimeout(() => flashEl.remove(), 100);
         }, 50);
-    }
-
-    getKeyToMidiOffset() {
-        // Keyboard key to MIDI note offset
-        // Default start from Middle C (C4 = MIDI 60)
-        return {
-            'a': 0,  // C
-            'w': 1,  // C#
-            's': 2,  // D
-            'e': 3,  // D#
-            'd': 4,  // E
-            'f': 5,  // F
-            't': 6,  // F#
-            'g': 7,  // G
-            'y': 8,  // G#
-            'h': 9,  // A
-            'u': 10, // A#
-            'j': 11, // B
-            'k': 12, // C5
-            'o': 13, // C#5
-            'l': 14, // D5
-            'p': 15, // D#5
-            ';': 16, // E5
-            '\'': 17  // F5
-        };
     }
 
     judgeNote(note, timeDiff) {
@@ -952,7 +929,9 @@ class InstrumentTilesGame {
     endGame() {
         this.isPlaying = false;
         this.isPaused = false;
-        this.stopPitchDetection();
+        if (this.pitchDetectionEnabled && !this.pitchDetectionTimer) {
+            this.startPitchDetection();
+        }
         
         document.getElementById('play-btn').disabled = false;
         document.getElementById('pause-btn').disabled = true;

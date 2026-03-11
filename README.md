@@ -94,31 +94,6 @@ this.hitWindow = {
 };
 ```
 
-## Browser Compatibility
 
-- ✅ Chrome / Edge (Recommended)
-- ✅ Firefox
-- ✅ Safari
-- ⚠️ Other browsers may need testing for Web Audio API support
-
-## Roadmap
-
-- [ ] Add real audio playback for MIDI backing tracks
-- [ ] Implement piano keyboard input support
-- [ ] Add instrument-specific fingering displays (Flute, Violin, etc.)
-- [ ] Support multiple MIDI tracks
-- [ ] Skin/Theme system
-- [ ] Save game records/high scores
-- [ ] Multiplayer mode
-
-## License
-
-MIT License
-
-## Contributing
-
-Issues and Pull Requests are welcome!
-
----
 
 **Happy Practicing!** 🎶
