@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instrument Tiles</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 Instrument Tiles</h1>
+            <p class="subtitle">Pedagogical Music Game</p>
+        </header>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="midi-upload">Upload MIDI File</label>
+                <input type="file" id="midi-upload" accept=".mid,.midi">
+            </div>
+
+            <div class="control-group">
+                <label for="speed-control">Speed: <span id="speed-value">1.0</span>x</label>
+                <input type="range" id="speed-control" min="0.5" max="2.0" step="0.1" value="1.0">
+            </div>
+
+            <div class="control-group button-group">
+                <button id="mic-btn">🎤 Connect Mic</button>
+                <button id="preview-btn" disabled>🎵 Preview Pitch</button>
+                <button id="play-btn" disabled>▶ Start Game</button>
+                <button id="pause-btn" disabled>⏸ Pause</button>
+                <button id="reset-btn" disabled>🔄 Reset</button>
+            </div>
+        </div>
+
+        <div class="game-container">
+            <div class="game-area" id="game-area">
+                <canvas id="game-canvas"></canvas>
+                <div class="judgment-line" id="judgment-line"></div>
+            </div>
+
+            <div class="info-panel">
+                <div class="score-display">
+                    <h3>Score</h3>
+                    <p id="score">0</p>
+                </div>
+                <div class="combo-display">
+                    <h3>Combo</h3>
+                    <p id="combo">0</p>
+                </div>
+                <div class="accuracy-display">
+                    <h3>Accuracy</h3>
+                    <p id="accuracy">100%</p>
+                </div>
+                <div class="pitch-display">
+                    <h3>Detected Pitch</h3>
+                    <p id="current-pitch">--</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="fingering-display" id="fingering-display">
+            <!-- Fingering display area - to be implemented -->
+            <p class="placeholder">Fingering Display (Coming Soon)</p>
+        </div>
+
+        <div class="status-bar" id="status-bar">
+            <span id="status-text">Please upload a MIDI file to start the game</span>
+        </div>
+
+        <div class="help-text">
+            <p>💡 Tips: 1. Click "Connect Mic" to allow microphone access. 2. Click "Preview Pitch" to listen to the notes. 3. Play the corresponding pitch on your flute when the note hits the red judgment line. 4. Supports any octave (e.g., D4 can be played as D3 or D5).</p>
+        </div>
+    </div>
+
+    <!-- 使用本地 MIDI 解析器，无需外部依赖 -->
+    <script src="midi-parser.js"></script>
+    <script src="pitch-detector.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
