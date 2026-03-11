@@ -68,6 +68,7 @@ class InstrumentTilesGame {
         window.addEventListener('resize', () => this.resizeCanvas());
         this.setupEventListeners();
         this.render();
+        this.loadDefaultMidi();
     }
 
     resizeCanvas() {
@@ -125,6 +126,31 @@ class InstrumentTilesGame {
             console.error('MIDI load failed:', error);
             console.error('Error stack:', error.stack);
             this.updateStatus(`MIDI file load failed: ${error.message}`);
+        }
+    }
+
+    async loadDefaultMidi() {
+        this.updateStatus('Loading default MIDI file...');
+
+        try {
+            const response = await fetch('BananaBoat.mid');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            console.log('Default MIDI loaded:', arrayBuffer.byteLength, 'bytes');
+
+            this.midiData = new SimpleMidiParser(arrayBuffer);
+            console.log('Default MIDI parsed successfully:', this.midiData);
+
+            this.parseMidiData();
+            this.updateStatus(`Default song loaded! Total ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
+            this.enableControls();
+            this.render();
+        } catch (error) {
+            console.error('Default MIDI load failed:', error);
+            this.updateStatus('Please upload a MIDI file to start the game');
         }
     }
 
