@@ -370,7 +370,13 @@ class InstrumentTilesGame {
         
         // For transposing instruments, play the sounding pitch (what the player would hear)
         // For B♭ instruments: written C sounds as B♭ (2 semitones lower)
-        const soundingMidi = firstNote.midi + this.transpositionInterval;
+        // For F and E♭ instruments, add an octave to avoid too low pitch
+        let octaveAdjustment = 0;
+        if (this.transpositionInterval <= -7) {
+            // F Horn (-7) and E♭ Sax (-9): add octave for better range
+            octaveAdjustment = 12;
+        }
+        const soundingMidi = firstNote.midi + this.transpositionInterval + octaveAdjustment;
         const soundingNoteName = this.midiToNoteName(soundingMidi);
         
         const displayInfo = this.transpositionInterval !== 0 
