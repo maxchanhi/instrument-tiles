@@ -368,12 +368,21 @@ class InstrumentTilesGame {
         // Get the first note of the MIDI
         const firstNote = this.notes[0];
         
-        this.updateStatus(`Playing pitch for the first note: ${firstNote.name}...`);
+        // For transposing instruments, play the sounding pitch (what the player would hear)
+        // For B♭ instruments: written C sounds as B♭ (2 semitones lower)
+        const soundingMidi = firstNote.midi + this.transpositionInterval;
+        const soundingNoteName = this.midiToNoteName(soundingMidi);
         
-        // Play the single note
+        const displayInfo = this.transpositionInterval !== 0 
+            ? `${firstNote.name} (sounding: ${soundingNoteName})`
+            : firstNote.name;
+        
+        this.updateStatus(`Playing pitch for the first note: ${displayInfo}...`);
+        
+        // Play the sounding pitch (transposed)
         const noteDuration = 1.0; // Play for 1 second to be clear
         
-        this.playTone(firstNote.midi, noteDuration);
+        this.playTone(soundingMidi, noteDuration);
         this.updateNextNoteDisplayForPreview(firstNote);
         
         // Reset button after playback
