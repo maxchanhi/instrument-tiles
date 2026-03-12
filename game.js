@@ -55,6 +55,14 @@ class InstrumentTilesGame {
         this.lastDetectedMidi = null;
         this.pitchDetectionTimer = null;
         this.recentlyHitNotes = new Set(); // Prevent duplicate hits
+        
+        // Sustained hit tracking
+        this.currentlyHeldNote = null; // Note currently being held
+        this.holdStartTime = 0; // When player started holding the note
+        this.holdDuration = 0; // How long player has held the note
+
+        // Tile duration ratio (1.0 = original, 0.5 = half length, 2.0 = double length)
+        this.tileDurationRatio = 1.0;
 
         this.metronomeEnabled = true;
         this.beatsPerBar = 3;
@@ -104,6 +112,17 @@ class InstrumentTilesGame {
         document.getElementById('speed-control').addEventListener('input', (e) => {
             this.speed = parseFloat(e.target.value);
             document.getElementById('speed-value').textContent = this.speed.toFixed(1);
+        });
+
+        // Tile duration ratio control
+        document.getElementById('duration-control').addEventListener('input', (e) => {
+            this.tileDurationRatio = parseFloat(e.target.value);
+            document.getElementById('duration-value').textContent = this.tileDurationRatio.toFixed(1);
+            // Recalculate note positions with new duration ratio
+            if (this.midiData) {
+                this.parseMidiData();
+                this.render();
+            }
         });
 
         const metronomeToggle = document.getElementById('metronome-toggle');
@@ -203,14 +222,16 @@ class InstrumentTilesGame {
                 
                 const noteKey = `${note.midi}-${note.startTime}`;
                 if (!noteMap.has(noteKey)) {
+                    // Apply duration ratio to tile length
+                    const scaledDuration = note.duration * this.tileDurationRatio;
                     // Limit max display length
-                    const displayDuration = Math.min(note.duration, 0.5);
+                    const displayDuration = Math.min(scaledDuration, 0.5 * this.tileDurationRatio);
                     
                     const noteObj = {
                         midi: note.midi,
                         name: note.name,
                         startTime: note.startTime,
-                        endTime: note.startTime + displayDuration, // Use fixed max length
+                        endTime: note.startTime + displayDuration, // Use scaled duration
                         duration: displayDuration,
                         velocity: note.velocity,
                         track: trackIndex,
@@ -221,7 +242,8 @@ class InstrumentTilesGame {
                         width: 0,
                         height: 0,
                         originalDuration: note.duration, // Save original duration
-                        hitWindowOffset: 0 // Judgment window offset
+                        hitWindowOffset: 0, // Judgment window offset
+                        sustainRequired: true // Require sustained hit for perfect
                     };
                     noteMap.set(noteKey, noteObj);
                     this.notes.push(noteObj);
@@ -737,20 +759,51 @@ class InstrumentTilesGame {
             
             this.lastHitTime = currentTimeMs;
             
+            // Check if player is already holding this note
+            if (this.currentlyHeldNote === bestNote) {
+                // Continue holding - check if held for full duration
+                const holdTime = (currentTimeMs - this.holdStartTime) / 1000; // in seconds
+                const requiredHoldTime = bestNote.duration; // Full tile duration
+                
+                if (holdTime >= requiredHoldTime && !bestNote.hit) {
+                    // Successfully held for full duration - perfect hit!
+                    this.recentlyHitNotes.add(bestNote);
+                    setTimeout(() => {
+                        this.recentlyHitNotes.delete(bestNote);
+                    }, 500);
+                    
+                    this.judgeNote(bestNote, bestTimeDiff, true); // true = sustained hit
+                    this.currentlyHeldNote = null;
+                    
+                    const transpositionInfo = this.transpositionInterval !== 0 
+                        ? ` (Written: ${transposedNoteName}, Sounding: ${pitch.noteName})`
+                        : '';
+                    console.log(`Sustained Hit: ${bestNote.name}${transpositionInfo}, held: ${holdTime.toFixed(2)}s, required: ${requiredHoldTime.toFixed(2)}s`);
+                } else {
+                    // Still holding, update display
+                    const holdProgress = (holdTime / requiredHoldTime * 100).toFixed(0);
+                    this.updateStatus(`Holding ${bestNote.name}... ${holdProgress}%`);
+                }
+                return;
+            }
+            
+            // Start holding this note
+            this.currentlyHeldNote = bestNote;
+            this.holdStartTime = currentTimeMs;
+            this.holdDuration = 0;
+            
             // Mark as recently hit, prevent duplicate detection
             this.recentlyHitNotes.add(bestNote);
-            
-            // Remove mark after 500ms
-            setTimeout(() => {
-                this.recentlyHitNotes.delete(bestNote);
-            }, 500);
-            
-            this.judgeNote(bestNote, bestTimeDiff);
             
             const transpositionInfo = this.transpositionInterval !== 0 
                 ? ` (Written: ${transposedNoteName}, Sounding: ${pitch.noteName})`
                 : '';
-            console.log(`Hit: ${bestNote.name}${transpositionInfo}, timeDiff: ${bestTimeDiff.toFixed(0)}ms, Consecutive: ${skipCooldown}`);
+            console.log(`Start holding: ${bestNote.name}${transpositionInfo}, duration: ${bestNote.duration.toFixed(2)}s`);
+        } else {
+            // No matching note - release hold
+            if (this.currentlyHeldNote) {
+                this.currentlyHeldNote = null;
+            }
         }
     }
 
@@ -799,7 +852,7 @@ class InstrumentTilesGame {
         }, 50);
     }
 
-    judgeNote(note, timeDiff) {
+    judgeNote(note, timeDiff, isSustained = false) {
         let judgment = '';
         let scoreAdd = 0;
 
@@ -813,7 +866,12 @@ class InstrumentTilesGame {
             goodWindow = this.hitWindow.good * 0.8;
         }
 
-        if (timeDiff < perfectWindow) {
+        if (isSustained) {
+            // Sustained hit - held for full duration = automatic perfect with bonus!
+            judgment = 'perfect';
+            scoreAdd = 150; // Bonus for sustained hold
+            this.combo += 2; // Extra combo boost
+        } else if (timeDiff < perfectWindow) {
             judgment = 'perfect';
             scoreAdd = 100;
             this.combo++;
@@ -832,33 +890,37 @@ class InstrumentTilesGame {
             this.hitNotes++;
             this.score += scoreAdd + (this.combo > 10 ? this.combo : 0);
             this.updateStats();
-            this.showJudgment(judgment);
+            this.showJudgment(judgment, isSustained);
             
             // Reserved fingering display interface
             this.showFingering(note);
             
-            console.log(`Hit: ${note.name}, timeDiff: ${timeDiff.toFixed(0)}ms, Judgment: ${judgment}`);
+            console.log(`${isSustained ? 'Sustained ' : ''}Hit: ${note.name}, timeDiff: ${timeDiff.toFixed(0)}ms, Judgment: ${judgment}`);
         }
     }
 
-    showJudgment(judgment) {
+    showJudgment(judgment, isSustained = false) {
         // Create judgment effect
         const judgmentEl = document.createElement('div');
         judgmentEl.className = 'hit-effect';
-        judgmentEl.textContent = judgment.toUpperCase();
+        judgmentEl.textContent = isSustained ? 'PERFECT HOLD! 🎯' : judgment.toUpperCase();
         judgmentEl.style.position = 'absolute';
         judgmentEl.style.bottom = '100px';
         judgmentEl.style.left = '50%';
         judgmentEl.style.transform = 'translateX(-50%)';
-        judgmentEl.style.fontSize = '2rem';
+        judgmentEl.style.fontSize = isSustained ? '2.5rem' : '2rem';
         judgmentEl.style.fontWeight = 'bold';
         judgmentEl.style.color = this.getJudgmentColor(judgment);
         judgmentEl.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
         judgmentEl.style.pointerEvents = 'none';
         
+        if (isSustained) {
+            judgmentEl.style.animation = 'sustainedHit 0.5s ease-out forwards';
+        }
+        
         document.querySelector('.game-area').appendChild(judgmentEl);
         
-        setTimeout(() => judgmentEl.remove(), 300);
+        setTimeout(() => judgmentEl.remove(), 500);
     }
 
     getJudgmentColor(judgment) {
