@@ -28,7 +28,7 @@ class InstrumentTilesGame {
         this.canvasHeight = 0;
         
         // Game parameters
-        this.noteSpeed = 300; // Note falling speed (pixels/sec)
+        this.noteSpeed = 400; // Note falling speed (pixels/sec)
         this.judgmentLineY = 0;
         this.hitWindow = {
             perfect: 80,    // Perfect judgment window (ms)
@@ -55,6 +55,16 @@ class InstrumentTilesGame {
         this.lastDetectedMidi = null;
         this.pitchDetectionTimer = null;
         this.recentlyHitNotes = new Set(); // Prevent duplicate hits
+
+        this.metronomeEnabled = true;
+        this.beatsPerBar = 2;
+        this.metronomeBeatUnit = 1;
+        this.metronomeNextBeat = 0;
+        this.metronomeGridStart = 0;
+        this.metronomeRunning = false;
+        this.metronomeGain = 0.2;
+        this.metronomeClickDuration = 0.06;
+        this.countInTimer = null;
         
         // Fingering data (reserved interface)
         this.fingeringData = {};
@@ -91,6 +101,13 @@ class InstrumentTilesGame {
             this.speed = parseFloat(e.target.value);
             document.getElementById('speed-value').textContent = this.speed.toFixed(1);
         });
+
+        const metronomeToggle = document.getElementById('metronome-toggle');
+        if (metronomeToggle) {
+            metronomeToggle.addEventListener('change', (e) => {
+                this.metronomeEnabled = e.target.checked;
+            });
+        }
 
         // Microphone button
         document.getElementById('mic-btn').addEventListener('click', () => this.toggleMicrophone());
@@ -381,10 +398,6 @@ class InstrumentTilesGame {
     }
     
 
-
-    /**
-     * Update note display during preview
-     */
     updateNextNoteDisplayForPreview(note) {
         const nextNoteElement = document.getElementById('next-note-name');
         if (!nextNoteElement) return;
@@ -393,35 +406,62 @@ class InstrumentTilesGame {
         nextNoteElement.style.textShadow = '0 0 30px #9C27B0';
     }
 
-    play() {
+    async play() {
         if (!this.midiData) return;
 
         if (this.isPaused) {
             // Resume from pause
             this.startTime = this.audioContext.currentTime - this.pauseTime;
             this.isPaused = false;
+            this.metronomeRunning = this.metronomeEnabled;
+            if (this.metronomeRunning) {
+                const currentAdjustedTime = (this.audioContext.currentTime - this.startTime) * this.speed;
+                this.metronomeNextBeat = Math.ceil(currentAdjustedTime / this.metronomeBeatUnit) * this.metronomeBeatUnit;
+            }
+            document.getElementById('play-btn').disabled = true;
+            document.getElementById('pause-btn').disabled = false;
+            this.updateStatus('Game in progress...');
+            this.gameLoop();
         } else {
             // New game - set startTime so first note starts from top
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
             
             // Calculate first note time and time to reach judgment line
             const firstNoteTime = this.notes.length > 0 ? this.notes[0].startTime : 0;
             const timeToTop = this.judgmentLineY / this.noteSpeed; // Time from top to judgment line (sec)
+            const initialAdjustedTime = firstNoteTime - timeToTop;
             
             // Set startTime to let first note start from top
-            this.startTime = this.audioContext.currentTime - firstNoteTime + timeToTop;
-            
             this.resetStats();
+            this.resetNotes();
+
+            const countInDuration = this.beatsPerBar * (this.metronomeBeatUnit / this.speed);
+            const gameStartAudioTime = this.audioContext.currentTime + countInDuration;
+            this.startTime = gameStartAudioTime - (initialAdjustedTime / this.speed);
+            this.initializeMetronomeClock(initialAdjustedTime);
+            this.playCountIn(gameStartAudioTime, countInDuration);
+            this.updateStatus('Count-in...');
+
+            document.getElementById('play-btn').disabled = true;
+            document.getElementById('pause-btn').disabled = true;
+
+            if (this.countInTimer) {
+                clearTimeout(this.countInTimer);
+            }
+
+            this.countInTimer = setTimeout(() => {
+                this.isPlaying = true;
+                this.isPaused = false;
+                this.metronomeRunning = this.metronomeEnabled;
+                document.getElementById('play-btn').disabled = true;
+                document.getElementById('pause-btn').disabled = false;
+                this.updateStatus('Game in progress...');
+                this.gameLoop();
+            }, countInDuration * 1000);
         }
-
-        this.isPlaying = true;
-        this.isPaused = false;
-
-        document.getElementById('play-btn').disabled = true;
-        document.getElementById('pause-btn').disabled = false;
-
-        this.updateStatus('Game in progress...');
-        this.gameLoop();
     }
 
     pause() {
@@ -429,6 +469,7 @@ class InstrumentTilesGame {
 
         this.isPaused = true;
         this.pauseTime = this.audioContext.currentTime - this.startTime;
+        this.metronomeRunning = false;
         
         document.getElementById('play-btn').disabled = false;
         document.getElementById('pause-btn').disabled = true;
@@ -440,6 +481,11 @@ class InstrumentTilesGame {
         this.isPlaying = false;
         this.isPaused = false;
         this.pauseTime = 0;
+        this.metronomeRunning = false;
+        if (this.countInTimer) {
+            clearTimeout(this.countInTimer);
+            this.countInTimer = null;
+        }
         
         // Reset cooldown
         this.currentCooldown = 200;
@@ -509,6 +555,7 @@ class InstrumentTilesGame {
                     this.pitchDetectionEnabled = true;
                     micBtn.textContent = '✓ Mic Connected';
                     micBtn.style.background = '#4CAF50';
+                    micBtn.disabled = false;
                     this.updateStatus('Microphone connected, ready to start!');
 
                     // Start pitch detection loop
@@ -525,7 +572,46 @@ class InstrumentTilesGame {
                 micBtn.disabled = false;
                 this.updateStatus(`Microphone connection failed: ${error.message}`);
             }
+        } else {
+            const micBtn = document.getElementById('mic-btn');
+            this.pitchDetectionEnabled = false;
+            this.stopPitchDetection();
+            this.pitchDetector.stop();
+            micBtn.textContent = '🎤 Connect Mic';
+            micBtn.style.background = '';
+            micBtn.disabled = false;
+            this.updateStatus('Microphone disconnected');
         }
+    }
+
+    initializeMetronomeClock(initialAdjustedTime) {
+        this.metronomeGridStart = initialAdjustedTime;
+        this.metronomeNextBeat = initialAdjustedTime;
+    }
+
+    playCountIn(gameStartAudioTime, countInDuration) {
+        const beatDuration = this.metronomeBeatUnit / this.speed;
+        const startTime = gameStartAudioTime - countInDuration;
+        for (let i = 0; i < this.beatsPerBar; i++) {
+            this.playMetronomeClick(startTime + i * beatDuration, i === 0);
+        }
+    }
+
+    playMetronomeClick(time, accent) {
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        oscillator.frequency.value = 800;
+        oscillator.type = 'square';
+
+        gainNode.gain.setValueAtTime(0, time);
+        gainNode.gain.linearRampToValueAtTime(this.metronomeGain, time + 0.001);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, time + this.metronomeClickDuration);
+
+        oscillator.start(time);
+        oscillator.stop(time + this.metronomeClickDuration + 0.02);
     }
 
     startPitchDetection() {
@@ -759,6 +845,10 @@ class InstrumentTilesGame {
         // Update next note hint
         this.updateNextNoteDisplay(adjustedTime);
 
+        if (this.metronomeRunning) {
+            this.scheduleMetronomeClicks();
+        }
+
         // Check missed notes - shrink miss judgment window
         this.notes.forEach(note => {
             if (!note.hit && !note.missed && adjustedTime > note.startTime + 0.3) {
@@ -779,6 +869,21 @@ class InstrumentTilesGame {
         }
 
         requestAnimationFrame(() => this.gameLoop());
+    }
+
+    scheduleMetronomeClicks() {
+        if (!this.audioContext) return;
+        const lookaheadSeconds = 0.1;
+        const currentAdjustedTime = (this.audioContext.currentTime - this.startTime) * this.speed;
+        const scheduleUntilAdjusted = currentAdjustedTime + lookaheadSeconds * this.speed;
+
+        while (this.metronomeNextBeat <= scheduleUntilAdjusted) {
+            const beatCount = Math.round((this.metronomeNextBeat - this.metronomeGridStart) / this.metronomeBeatUnit);
+            const accent = beatCount % this.beatsPerBar === 0;
+            const audioTime = this.startTime + (this.metronomeNextBeat / this.speed);
+            this.playMetronomeClick(audioTime, accent);
+            this.metronomeNextBeat += this.metronomeBeatUnit;
+        }
     }
 
     /**
@@ -958,6 +1063,7 @@ class InstrumentTilesGame {
         if (this.pitchDetectionEnabled && !this.pitchDetectionTimer) {
             this.startPitchDetection();
         }
+        this.metronomeRunning = false;
         
         document.getElementById('play-btn').disabled = false;
         document.getElementById('pause-btn').disabled = true;
