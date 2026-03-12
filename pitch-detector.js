@@ -119,6 +119,19 @@ class PitchDetector {
             confidence: acf.confidence
         };
     }
+
+    stop() {
+        if (this.mediaStream) {
+            this.mediaStream.getTracks().forEach(track => track.stop());
+        }
+        if (this.audioContext) {
+            this.audioContext.close();
+        }
+        this.isListening = false;
+        this.analyser = null;
+        this.mediaStream = null;
+        this.dataArray = null;
+    }
     
     /**
      * 从历史记录中获取稳定的音高（众数）

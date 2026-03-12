@@ -57,7 +57,7 @@ class InstrumentTilesGame {
         this.recentlyHitNotes = new Set(); // Prevent duplicate hits
 
         this.metronomeEnabled = true;
-        this.beatsPerBar = 2;
+        this.beatsPerBar = 3;
         this.metronomeBeatUnit = 1;
         this.metronomeNextBeat = 0;
         this.metronomeGridStart = 0;
@@ -970,7 +970,7 @@ class InstrumentTilesGame {
         const visibleWindow = 5; // Visible time window (sec)
 
         this.notes.forEach(note => {
-            if (note.hit || note.missed) return;
+            if (note.hit) return; // Only hide hit notes, let missed notes fall off screen
 
             // Calculate note Y position
             // Make note bottom (front) touch judgment line at startTime
