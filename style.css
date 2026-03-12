@@ -95,6 +95,31 @@ header h1 {
     cursor: pointer;
 }
 
+.control-group select {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    outline: none;
+    min-width: 200px;
+}
+
+.control-group select:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.control-group select option {
+    background: #2d3748;
+    color: white;
+    padding: 10px;
+}
+
 .control-group button {
     background: #2196F3;
     color: white;

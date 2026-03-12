@@ -66,6 +66,10 @@ class InstrumentTilesGame {
         this.metronomeClickDuration = 0.06;
         this.countInTimer = null;
         
+        // Transposing instrument support
+        this.transpositionInterval = 0; // Semitones: 0 = C instrument, -2 = B♭, -9 = E♭, etc.
+        this.instrumentName = 'C Instrument';
+        
         // Fingering data (reserved interface)
         this.fingeringData = {};
         
@@ -106,6 +110,17 @@ class InstrumentTilesGame {
         if (metronomeToggle) {
             metronomeToggle.addEventListener('change', (e) => {
                 this.metronomeEnabled = e.target.checked;
+            });
+        }
+
+        // Instrument selector (transposing instruments)
+        const instrumentSelect = document.getElementById('instrument-select');
+        if (instrumentSelect) {
+            instrumentSelect.addEventListener('change', (e) => {
+                this.transpositionInterval = parseInt(e.target.value);
+                this.instrumentName = e.target.options[e.target.selectedIndex].text;
+                console.log(`Instrument changed: ${this.instrumentName}, transposition: ${this.transpositionInterval} semitones`);
+                this.updateStatus(`Using ${this.instrumentName} - Written pitch displayed, sounding pitch detected`);
             });
         }
 
@@ -622,7 +637,16 @@ class InstrumentTilesGame {
             const pitchElement = document.getElementById('current-pitch');
             
             if (pitch) {
-                pitchElement.textContent = pitch.noteName;
+                // Show transposed (written) pitch for transposing instruments
+                const transposedMidi = pitch.midi - this.transpositionInterval;
+                const transposedNoteName = this.midiToNoteName(transposedMidi);
+                
+                if (this.transpositionInterval !== 0) {
+                    // Show both written and sounding pitch
+                    pitchElement.textContent = `${transposedNoteName} (${pitch.noteName})`;
+                } else {
+                    pitchElement.textContent = pitch.noteName;
+                }
                 pitchElement.classList.add('detected');
                 
                 // If game is playing, check for hit
@@ -646,6 +670,11 @@ class InstrumentTilesGame {
         const adjustedTime = currentTime * this.speed;
         const currentTimeMs = Date.now();
 
+        // Transpose detected pitch to written pitch for comparison
+        // For B♭ instruments: detected B♭ + 2 semitones = written C
+        const transposedMidi = pitch.midi - this.transpositionInterval;
+        const transposedNoteName = this.midiToNoteName(transposedMidi);
+
         // Find best matching note with min time diff
         let bestNote = null;
         let bestTimeDiff = Infinity;
@@ -657,7 +686,8 @@ class InstrumentTilesGame {
             if (this.recentlyHitNotes.has(note)) return;
 
             // Check pitch match (allow different octaves, check note name only)
-            const pitchClassMatch = (pitch.midi % 12) === (note.midi % 12);
+            // Compare transposed pitch (written pitch) with note
+            const pitchClassMatch = (transposedMidi % 12) === (note.midi % 12);
             
             if (!pitchClassMatch) return;
 
@@ -702,8 +732,23 @@ class InstrumentTilesGame {
             
             this.judgeNote(bestNote, bestTimeDiff);
             
-            console.log(`Hit: ${bestNote.name}, Detected Pitch: ${pitch.noteName}, timeDiff: ${bestTimeDiff.toFixed(0)}ms, Consecutive: ${skipCooldown}`);
+            const transpositionInfo = this.transpositionInterval !== 0 
+                ? ` (Written: ${transposedNoteName}, Sounding: ${pitch.noteName})`
+                : '';
+            console.log(`Hit: ${bestNote.name}${transpositionInfo}, timeDiff: ${bestTimeDiff.toFixed(0)}ms, Consecutive: ${skipCooldown}`);
         }
+    }
+
+    /**
+     * Convert MIDI note number to note name
+     * @param {number} midi - MIDI note number
+     * @returns {string} Note name (e.g., "C4", "B♭3")
+     */
+    midiToNoteName(midi) {
+        const noteNames = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+        const octave = Math.floor(midi / 12) - 1;
+        const noteName = noteNames[midi % 12];
+        return `${noteName}${octave}`;
     }
 
     showKeyFeedback(key) {
