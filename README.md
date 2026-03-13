@@ -15,21 +15,30 @@ A web-based pedagogical music game designed for practicing instrument intonation
 
 ## Quick Start
 
-### Method 1: Open Directly
-Simply open the `index.html` file in your browser.
+### Prerequisites
 
-### Method 2: Use Local Server (Recommended)
-You can use Python or Node.js to start a local server:
+- [Node.js](https://nodejs.org/) (v18.0.0 or higher)
+- [uv](https://github.com/astral-sh/uv) (for running Python scripts if needed)
 
-```bash
-# Using Python
-python -m http.server 8000
+### Installation
 
-# Or using Node.js
-npx http-server
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/maxchanhi/instrument-tiles.git
+   cd instrument-tiles
+   ```
 
-# Then visit http://localhost:8000
-```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Start the server:
+   ```bash
+   npm start
+   ```
+
+4. Visit `http://localhost:3000` (or the port specified in your console) to play!
 
 ## How to Play
 
@@ -37,16 +46,18 @@ npx http-server
 2. **Connect Microphone** - Click "Connect Mic" to enable pitch detection.
 3. **Preview Pitch** - (Optional) Click "Preview Pitch" to hear the starting note.
 4. **Adjust Speed** - Use the slider to set a comfortable practice speed.
-5. **Start Game** - Click the "Start Game" button.
-6. **Play Your Instrument** - When a note hits the red judgment line, play the corresponding pitch on your instrument.
-7. **Feedback** - Watch for visual feedback (Perfect/Good/Miss) and your score.
+5. **Tile Duration** - Adjust how long the notes appear visually.
+6. **Start Game** - Click the "Start Game" button.
+7. **Sustain Your Pitch** - When a note hits the red judgment line, play and **hold** the corresponding pitch on your instrument for the entire tile duration to get a **PERFECT HOLD**!
+8. **Feedback** - Watch for visual feedback and your score.
 
 ## Tech Stack
 
-- **HTML5 Canvas** - Game rendering
+- **Node.js & Express** - Backend server
+- **HTML5 Canvas** - Game rendering with "Neon Symphony" theme
 - **Web Audio API** - Pitch detection and audio synthesis
-- **Native JavaScript** - Core game logic (no heavy frameworks)
-- **CSS3** - Modern UI design
+- **Native JavaScript** - Core game logic
+- **CSS3** - Modern UI with glassmorphism and neon effects
 
 ## Project Structure
 
