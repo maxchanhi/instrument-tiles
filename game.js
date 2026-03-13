@@ -237,6 +237,8 @@ class InstrumentTilesGame {
                         track: trackIndex,
                         hit: false,
                         missed: false,
+                        accumulatedHoldTime: 0, // NEW: Track total time correctly sustained
+                        isBeingHeld: false,    // NEW: Currently being sustained
                         x: 0,
                         y: 0,
                         width: 0,
@@ -576,7 +578,11 @@ class InstrumentTilesGame {
         this.notes.forEach(note => {
             note.hit = false;
             note.missed = false;
+            note.accumulatedHoldTime = 0;
+            note.isBeingHeld = false;
+            note.lastHoldUpdate = null;
         });
+        this.currentlyHeldNote = null;
     }
 
     updateStats() {
@@ -708,130 +714,62 @@ class InstrumentTilesGame {
         const currentTimeMs = Date.now();
 
         // Transpose detected pitch to written pitch for comparison
-        // For B♭ instruments: detected B♭ + 2 semitones = written C
         const transposedMidi = pitch.midi - this.transpositionInterval;
         const transposedNoteName = this.midiToNoteName(transposedMidi);
-
-        // DEBUG: Log every pitch detection during gameplay
-        console.log(`[PITCH] Detected: ${pitch.noteName} (MIDI: ${pitch.midi}), Transposed: ${transposedNoteName} (MIDI: ${transposedMidi}), Time: ${adjustedTime.toFixed(2)}s`);
 
         // Find best matching note with min time diff
         let bestNote = null;
         let bestTimeDiff = Infinity;
 
+        // Threshold for starting a hold (looser window)
+        const holdStartThreshold = this.hitWindow.miss;
+
         this.notes.forEach(note => {
             if (note.hit || note.missed) return;
             
-            // Prevent duplicate hits
+            // Allow same note to be hit again after small gap
             if (this.recentlyHitNotes.has(note)) return;
 
-            // Check pitch match (allow different octaves, check note name only)
-            // Compare transposed pitch (written pitch) with note
+            // Pitch class match (ignore octave)
             const pitchClassMatch = (transposedMidi % 12) === (note.midi % 12);
-            
-            if (!pitchClassMatch) {
-                console.log(`[PITCH] No match: ${transposedNoteName} vs ${note.name}`);
-                return;
-            }
+            if (!pitchClassMatch) return;
 
-            // Calculate time diff (ms), apply dynamic window offset
-            let timeDiff = Math.abs(note.startTime - adjustedTime) * 1000;
+            // Note is "active" if current time is within its window
+            // window: [startTime - threshold, endTime]
+            const timeUntilStart = note.startTime - adjustedTime;
+            const timeUntilEnd = note.endTime - adjustedTime;
             
-            // Apply judgment window offset (consecutive notes)
-            timeDiff -= note.hitWindowOffset * 1000;
-            
-            // For consecutive same notes, use looser judgment window
-            let effectiveHitWindow = this.hitWindow.miss;
-            if (note.hitWindowOffset !== 0) {
-                // Consecutive notes use larger judgment window
-                effectiveHitWindow = this.hitWindow.miss * 1.5;
-            }
-            
-            console.log(`[PITCH] Potential match: ${note.name}, timeDiff: ${timeDiff.toFixed(0)}ms, window: ${effectiveHitWindow.toFixed(0)}ms`);
-            
-            // Find note with min time diff
-            if (timeDiff < bestTimeDiff && timeDiff < effectiveHitWindow) {
-                bestTimeDiff = timeDiff;
-                bestNote = note;
+            // Check if we are in the hit window or already within the tile duration
+            if (timeUntilStart < holdStartThreshold / 1000 && timeUntilEnd > -0.1) {
+                const timeDiff = Math.abs(timeUntilStart) * 1000;
+                if (timeDiff < bestTimeDiff) {
+                    bestTimeDiff = timeDiff;
+                    bestNote = note;
+                }
             }
         });
 
-        // Hit best matching note
+        // Manage hold state
         if (bestNote) {
-            // Consecutive same notes skip cooldown check
-            const skipCooldown = bestNote.hitWindowOffset !== 0;
-            
-            if (!skipCooldown && currentTimeMs - this.lastHitTime < this.currentCooldown) {
-                console.log(`[PITCH] Cooldown active, skipping hit`);
-                return;
+            // Update accumulated hold time
+            if (!bestNote.lastHoldUpdate) {
+                bestNote.lastHoldUpdate = currentTimeMs;
+                console.log(`[PITCH] Started sustaining: ${bestNote.name}`);
+            } else {
+                const delta = (currentTimeMs - bestNote.lastHoldUpdate) / 1000;
+                bestNote.accumulatedHoldTime += delta;
+                bestNote.lastHoldUpdate = currentTimeMs;
+                
+                // Optional: visual indicator for sustaining
+                bestNote.isBeingHeld = true;
             }
             
-            this.lastHitTime = currentTimeMs;
-            
-            // Check if player is already holding this note
-            if (this.currentlyHeldNote === bestNote) {
-                // Continue holding - check if held for full duration
-                const holdTime = (currentTimeMs - this.holdStartTime) / 1000; // in seconds
-                const requiredHoldTime = bestNote.duration; // Full tile duration
-                
-                if (holdTime >= requiredHoldTime && !bestNote.hit) {
-                    // Successfully held for full duration - perfect hit!
-                    this.recentlyHitNotes.add(bestNote);
-                    setTimeout(() => {
-                        this.recentlyHitNotes.delete(bestNote);
-                    }, 500);
-                    
-                    this.judgeNote(bestNote, bestTimeDiff, true); // true = sustained hit
-                    this.currentlyHeldNote = null;
-                    
-                    const transpositionInfo = this.transpositionInterval !== 0 
-                        ? ` (Written: ${transposedNoteName}, Sounding: ${pitch.noteName})`
-                        : '';
-                    console.log(`[PITCH] Sustained Hit: ${bestNote.name}${transpositionInfo}, held: ${holdTime.toFixed(2)}s, required: ${requiredHoldTime.toFixed(2)}s`);
-                } else {
-                    // Still holding, update display
-                    const holdProgress = (holdTime / requiredHoldTime * 100).toFixed(0);
-                    console.log(`[PITCH] Holding ${bestNote.name}... ${holdProgress}% (${holdTime.toFixed(2)}s / ${requiredHoldTime.toFixed(2)}s)`);
-                }
-                return;
-            }
-            
-            // NEW: Instant hit mode - register hit immediately when pitch is detected in window
-            // This is more forgiving than sustain mode
-            const instantHitThreshold = this.hitWindow.good; // Use "good" window for instant hits
-            if (bestTimeDiff < instantHitThreshold && !bestNote.hit) {
-                // Instant hit!
-                this.recentlyHitNotes.add(bestNote);
-                setTimeout(() => {
-                    this.recentlyHitNotes.delete(bestNote);
-                }, 500);
-                
-                this.judgeNote(bestNote, bestTimeDiff, false); // false = normal hit
-                this.currentlyHeldNote = null;
-                
-                const transpositionInfo = this.transpositionInterval !== 0 
-                    ? ` (Written: ${transposedNoteName}, Sounding: ${pitch.noteName})`
-                    : '';
-                console.log(`[PITCH] Instant Hit: ${bestNote.name}${transpositionInfo}, timeDiff: ${bestTimeDiff.toFixed(0)}ms`);
-                return;
-            }
-            
-            // Start holding this note (fallback if instant hit didn't trigger)
             this.currentlyHeldNote = bestNote;
-            this.holdStartTime = currentTimeMs;
-            this.holdDuration = 0;
-            
-            // Mark as recently hit, prevent duplicate detection
-            this.recentlyHitNotes.add(bestNote);
-            
-            const transpositionInfo = this.transpositionInterval !== 0 
-                ? ` (Written: ${transposedNoteName}, Sounding: ${pitch.noteName})`
-                : '';
-            console.log(`[PITCH] Start holding: ${bestNote.name}${transpositionInfo}, duration: ${bestNote.duration.toFixed(2)}s`);
         } else {
-            // No matching note - release hold
+            // If we were holding a note, mark it as no longer being held
             if (this.currentlyHeldNote) {
-                console.log(`[PITCH] No match, releasing hold`);
+                this.currentlyHeldNote.isBeingHeld = false;
+                this.currentlyHeldNote.lastHoldUpdate = null;
                 this.currentlyHeldNote = null;
             }
         }
@@ -882,50 +820,45 @@ class InstrumentTilesGame {
         }, 50);
     }
 
-    judgeNote(note, timeDiff, isSustained = false) {
+    judgeNote(note) {
         let judgment = '';
         let scoreAdd = 0;
 
-        // Adjust judgment standards based on note type
-        let perfectWindow = this.hitWindow.perfect;
-        let goodWindow = this.hitWindow.good;
+        // Sustain-based judgment
+        const sustainPercentage = note.accumulatedHoldTime / note.duration;
         
-        // Consecutive notes use stricter judgment
-        if (note.hitWindowOffset !== 0) {
-            perfectWindow = this.hitWindow.perfect * 0.8;
-            goodWindow = this.hitWindow.good * 0.8;
-        }
-
-        if (isSustained) {
-            // Sustained hit - held for full duration = automatic perfect with bonus!
+        if (sustainPercentage >= 0.85) {
             judgment = 'perfect';
-            scoreAdd = 150; // Bonus for sustained hold
-            this.combo += 2; // Extra combo boost
-        } else if (timeDiff < perfectWindow) {
-            judgment = 'perfect';
-            scoreAdd = 100;
+            scoreAdd = 150;
             this.combo++;
-        } else if (timeDiff < goodWindow) {
+        } else if (sustainPercentage >= 0.5) {
             judgment = 'good';
-            scoreAdd = 50;
+            scoreAdd = 75;
             this.combo++;
-        } else if (timeDiff < this.hitWindow.miss) {
+        } else if (sustainPercentage > 0) {
+            judgment = 'miss';
+            scoreAdd = 0;
+            this.combo = 0;
+        } else {
+            // Truly missed (0 sustain)
             judgment = 'miss';
             scoreAdd = 0;
             this.combo = 0;
         }
 
         if (judgment) {
-            note.hit = true;
-            this.hitNotes++;
-            this.score += scoreAdd + (this.combo > 10 ? this.combo : 0);
+            note.hit = (judgment !== 'miss');
+            if (note.hit) {
+                this.hitNotes++;
+            } else {
+                this.missedNotes++;
+            }
+            
+            this.score += scoreAdd + (this.combo > 10 ? Math.floor(this.combo / 2) : 0);
             this.updateStats();
-            this.showJudgment(judgment, isSustained);
+            this.showJudgment(judgment, sustainPercentage >= 0.85);
             
-            // Reserved fingering display interface
-            this.showFingering(note);
-            
-            console.log(`${isSustained ? 'Sustained ' : ''}Hit: ${note.name}, timeDiff: ${timeDiff.toFixed(0)}ms, Judgment: ${judgment}`);
+            console.log(`Judged: ${note.name}, Sustain: ${(sustainPercentage * 100).toFixed(1)}%, Judgment: ${judgment}`);
         }
     }
 
@@ -1001,19 +934,23 @@ class InstrumentTilesGame {
             this.scheduleMetronomeClicks();
         }
 
-        // Check missed notes - only mark as missed after the tile has fully passed
-        // For sustained hits, use endTime (when tile tail passes judgment line)
+        // Finalize judgment for notes that have fully passed the line
         this.notes.forEach(note => {
-            if (!note.hit && !note.missed && adjustedTime > note.endTime + 0.2) {
-                // If player was holding this note but didn't complete, still mark as missed
+            if (!note.hit && !note.missed && adjustedTime > note.endTime + 0.1) {
+                // If the player was holding it, stop it
                 if (this.currentlyHeldNote === note) {
                     this.currentlyHeldNote = null;
                 }
-                note.missed = true;
-                this.missedNotes++;
-                this.combo = 0;
-                this.updateStats();
-                console.log(`Note missed: ${note.name}, endTime: ${note.endTime.toFixed(2)}, currentTime: ${adjustedTime.toFixed(2)}`);
+                
+                // Finalize judgment based on accumulated sustain
+                this.judgeNote(note);
+                
+                // If it wasn't a hit (still marked missed in judgeNote), ensure missed flag
+                if (!note.hit) {
+                    note.missed = true;
+                }
+                
+                console.log(`Note finalized: ${note.name}, Sustain: ${(note.accumulatedHoldTime / note.duration * 100).toFixed(1)}%`);
             }
         });
 
@@ -1044,9 +981,6 @@ class InstrumentTilesGame {
         }
     }
 
-    /**
-     * Update next note display
-     */
     updateNextNoteDisplay(currentTime) {
         const nextNoteElement = document.getElementById('next-note-name');
         if (!nextNoteElement) return;
@@ -1142,8 +1076,8 @@ class InstrumentTilesGame {
 
             // Draw note
             this.ctx.fillStyle = this.getNoteColor(note);
-            this.ctx.shadowColor = this.getNoteColor(note);
-            this.ctx.shadowBlur = 15;
+            this.ctx.shadowColor = note.isBeingHeld ? '#fff' : this.getNoteColor(note);
+            this.ctx.shadowBlur = note.isBeingHeld ? 30 : 15;
 
             // Round rect
             this.roundRect(
@@ -1156,6 +1090,22 @@ class InstrumentTilesGame {
 
             this.ctx.fill();
             this.ctx.shadowBlur = 0;
+
+            // NEW: Draw sustain fill progress
+            if (note.accumulatedHoldTime > 0) {
+                const fillPercentage = Math.min(note.accumulatedHoldTime / note.duration, 1.0);
+                const fillHeight = Math.max(height, 20) * fillPercentage;
+                
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                this.roundRect(
+                    note.x,
+                    y + Math.max(height, 20) - fillHeight,
+                    note.width,
+                    fillHeight,
+                    5
+                );
+                this.ctx.fill();
+            }
 
             // Draw note border
             this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
