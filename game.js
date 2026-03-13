@@ -28,7 +28,7 @@ class InstrumentTilesGame {
         this.canvasHeight = 0;
         
         // Game parameters
-        this.noteSpeed = 400; // Note falling speed (pixels/sec)
+        this.noteSpeed = 520; // Note falling speed (pixels/sec)
         this.judgmentLineY = 0;
         this.hitWindow = {
             perfect: 80,    // Perfect judgment window (ms)
@@ -225,7 +225,7 @@ class InstrumentTilesGame {
                     // Apply duration ratio to tile length
                     const scaledDuration = note.duration * this.tileDurationRatio;
                     // Limit max display length
-                    const displayDuration = Math.min(scaledDuration, 0.5 * this.tileDurationRatio);
+                    const displayDuration = Math.min(scaledDuration, 0.9 * this.tileDurationRatio);
                     
                     const noteObj = {
                         midi: note.midi,
