@@ -712,6 +712,9 @@ class InstrumentTilesGame {
         const transposedMidi = pitch.midi - this.transpositionInterval;
         const transposedNoteName = this.midiToNoteName(transposedMidi);
 
+        // DEBUG: Log every pitch detection during gameplay
+        console.log(`[PITCH] Detected: ${pitch.noteName} (MIDI: ${pitch.midi}), Transposed: ${transposedNoteName} (MIDI: ${transposedMidi}), Time: ${adjustedTime.toFixed(2)}s`);
+
         // Find best matching note with min time diff
         let bestNote = null;
         let bestTimeDiff = Infinity;
@@ -726,7 +729,10 @@ class InstrumentTilesGame {
             // Compare transposed pitch (written pitch) with note
             const pitchClassMatch = (transposedMidi % 12) === (note.midi % 12);
             
-            if (!pitchClassMatch) return;
+            if (!pitchClassMatch) {
+                console.log(`[PITCH] No match: ${transposedNoteName} vs ${note.name}`);
+                return;
+            }
 
             // Calculate time diff (ms), apply dynamic window offset
             let timeDiff = Math.abs(note.startTime - adjustedTime) * 1000;
@@ -741,6 +747,8 @@ class InstrumentTilesGame {
                 effectiveHitWindow = this.hitWindow.miss * 1.5;
             }
             
+            console.log(`[PITCH] Potential match: ${note.name}, timeDiff: ${timeDiff.toFixed(0)}ms, window: ${effectiveHitWindow.toFixed(0)}ms`);
+            
             // Find note with min time diff
             if (timeDiff < bestTimeDiff && timeDiff < effectiveHitWindow) {
                 bestTimeDiff = timeDiff;
@@ -754,6 +762,7 @@ class InstrumentTilesGame {
             const skipCooldown = bestNote.hitWindowOffset !== 0;
             
             if (!skipCooldown && currentTimeMs - this.lastHitTime < this.currentCooldown) {
+                console.log(`[PITCH] Cooldown active, skipping hit`);
                 return;
             }
             
@@ -778,16 +787,36 @@ class InstrumentTilesGame {
                     const transpositionInfo = this.transpositionInterval !== 0 
                         ? ` (Written: ${transposedNoteName}, Sounding: ${pitch.noteName})`
                         : '';
-                    console.log(`Sustained Hit: ${bestNote.name}${transpositionInfo}, held: ${holdTime.toFixed(2)}s, required: ${requiredHoldTime.toFixed(2)}s`);
+                    console.log(`[PITCH] Sustained Hit: ${bestNote.name}${transpositionInfo}, held: ${holdTime.toFixed(2)}s, required: ${requiredHoldTime.toFixed(2)}s`);
                 } else {
                     // Still holding, update display
                     const holdProgress = (holdTime / requiredHoldTime * 100).toFixed(0);
-                    this.updateStatus(`Holding ${bestNote.name}... ${holdProgress}%`);
+                    console.log(`[PITCH] Holding ${bestNote.name}... ${holdProgress}% (${holdTime.toFixed(2)}s / ${requiredHoldTime.toFixed(2)}s)`);
                 }
                 return;
             }
             
-            // Start holding this note
+            // NEW: Instant hit mode - register hit immediately when pitch is detected in window
+            // This is more forgiving than sustain mode
+            const instantHitThreshold = this.hitWindow.good; // Use "good" window for instant hits
+            if (bestTimeDiff < instantHitThreshold && !bestNote.hit) {
+                // Instant hit!
+                this.recentlyHitNotes.add(bestNote);
+                setTimeout(() => {
+                    this.recentlyHitNotes.delete(bestNote);
+                }, 500);
+                
+                this.judgeNote(bestNote, bestTimeDiff, false); // false = normal hit
+                this.currentlyHeldNote = null;
+                
+                const transpositionInfo = this.transpositionInterval !== 0 
+                    ? ` (Written: ${transposedNoteName}, Sounding: ${pitch.noteName})`
+                    : '';
+                console.log(`[PITCH] Instant Hit: ${bestNote.name}${transpositionInfo}, timeDiff: ${bestTimeDiff.toFixed(0)}ms`);
+                return;
+            }
+            
+            // Start holding this note (fallback if instant hit didn't trigger)
             this.currentlyHeldNote = bestNote;
             this.holdStartTime = currentTimeMs;
             this.holdDuration = 0;
@@ -798,10 +827,11 @@ class InstrumentTilesGame {
             const transpositionInfo = this.transpositionInterval !== 0 
                 ? ` (Written: ${transposedNoteName}, Sounding: ${pitch.noteName})`
                 : '';
-            console.log(`Start holding: ${bestNote.name}${transpositionInfo}, duration: ${bestNote.duration.toFixed(2)}s`);
+            console.log(`[PITCH] Start holding: ${bestNote.name}${transpositionInfo}, duration: ${bestNote.duration.toFixed(2)}s`);
         } else {
             // No matching note - release hold
             if (this.currentlyHeldNote) {
+                console.log(`[PITCH] No match, releasing hold`);
                 this.currentlyHeldNote = null;
             }
         }
@@ -971,13 +1001,19 @@ class InstrumentTilesGame {
             this.scheduleMetronomeClicks();
         }
 
-        // Check missed notes - shrink miss judgment window
+        // Check missed notes - only mark as missed after the tile has fully passed
+        // For sustained hits, use endTime (when tile tail passes judgment line)
         this.notes.forEach(note => {
-            if (!note.hit && !note.missed && adjustedTime > note.startTime + 0.3) {
+            if (!note.hit && !note.missed && adjustedTime > note.endTime + 0.2) {
+                // If player was holding this note but didn't complete, still mark as missed
+                if (this.currentlyHeldNote === note) {
+                    this.currentlyHeldNote = null;
+                }
                 note.missed = true;
                 this.missedNotes++;
                 this.combo = 0;
                 this.updateStats();
+                console.log(`Note missed: ${note.name}, endTime: ${note.endTime.toFixed(2)}, currentTime: ${adjustedTime.toFixed(2)}`);
             }
         });
 
