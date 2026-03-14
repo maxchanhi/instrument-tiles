@@ -9,6 +9,102 @@
     --glass-border: rgba(255, 255, 255, 0.1);
     --neon-shadow: 0 0 10px rgba(0, 242, 255, 0.5), 0 0 20px rgba(0, 242, 255, 0.3);
     --card-radius: 24px;
+    --text-color: #fff;
+    --subtitle-color: rgba(255, 255, 255, 0.7);
+    --card-bg: rgba(0, 0, 0, 0.5);
+    --panel-bg: rgba(0, 0, 0, 0.4);
+    --help-bg: rgba(255, 255, 255, 0.03);
+    --footer-border: rgba(255, 255, 255, 0.05);
+    --status-color: #a0a0a0;
+}
+
+/* Light Mode (Day Mode) */
+body.light-mode {
+    --bg-dark: #f0f4f8;
+    --bg-gradient: linear-gradient(135deg, #f0f4f8, #d9e2ec, #bcccdc);
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-border: rgba(0, 0, 0, 0.1);
+    --text-color: #1a202e;
+    --subtitle-color: rgba(26, 32, 46, 0.7);
+    --card-bg: rgba(255, 255, 255, 0.8);
+    --panel-bg: rgba(255, 255, 255, 0.6);
+    --help-bg: rgba(0, 0, 0, 0.03);
+    --footer-border: rgba(0, 0, 0, 0.1);
+    --status-color: #5a6c7d;
+    --neon-shadow: 0 0 10px rgba(0, 242, 255, 0.3), 0 0 20px rgba(0, 242, 255, 0.2);
+}
+
+body.light-mode header h1 {
+    background: linear-gradient(to right, #0077b6, #7b2cbf);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 30px rgba(123, 44, 191, 0.2);
+}
+
+body.light-mode .game-area {
+    background: rgba(255, 255, 255, 0.5);
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.1), 0 0 30px rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .game-area::before {
+    background: 
+        linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.03) 25%, transparent 50%, rgba(0,0,0,0.03) 75%, transparent 100%),
+        linear-gradient(0deg, transparent 98%, rgba(0, 242, 255, 0.2) 100%);
+}
+
+body.light-mode .judgment-line {
+    background: #ff0055;
+    box-shadow: 0 0 10px #ff0055, 0 0 20px rgba(255, 0, 85, 0.5);
+}
+
+body.light-mode .control-group label[for="midi-upload"],
+body.light-mode .control-group select,
+body.light-mode .control-group button {
+    background: rgba(0, 0, 0, 0.05);
+    color: #1a202e;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+body.light-mode .control-group label[for="midi-upload"]:hover,
+body.light-mode .control-group select:hover,
+body.light-mode .control-group button:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .control-group button:disabled {
+    background: rgba(0, 0, 0, 0.02);
+    color: rgba(26, 32, 46, 0.3);
+}
+
+body.light-mode .pitch-display,
+body.light-mode .score-display,
+body.light-mode .combo-display,
+body.light-mode .accuracy-display,
+body.light-mode .fingering-display {
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .pitch-display:hover,
+body.light-mode .score-display:hover,
+body.light-mode .combo-display:hover,
+body.light-mode .accuracy-display:hover {
+    background: rgba(255, 255, 255, 0.95);
+}
+
+body.light-mode .status-bar {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .help-text {
+    background: rgba(0, 0, 0, 0.03);
+    border-left: 3px solid var(--primary-color);
+}
+
+body.light-mode .copyright-footer {
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 * {
@@ -24,9 +120,16 @@ body {
         radial-gradient(circle at 20% 20%, rgba(188, 19, 254, 0.15) 0%, transparent 40%),
         radial-gradient(circle at 80% 80%, rgba(0, 242, 255, 0.15) 0%, transparent 40%);
     min-height: 100vh;
-    color: #fff;
+    color: var(--text-color);
     overflow-x: hidden;
     animation: bgPulse 10s ease-in-out infinite alternate;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+body.light-mode {
+    background-image: 
+        radial-gradient(circle at 20% 20%, rgba(188, 19, 254, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(0, 242, 255, 0.08) 0%, transparent 40%);
 }
 
 @keyframes bgPulse {
@@ -45,6 +148,41 @@ header {
     text-align: center;
     margin-bottom: 50px;
     position: relative;
+}
+
+/* Theme Toggle Button - Small icon in top right */
+.theme-toggle-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.theme-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+    box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
+}
+
+body.light-mode .theme-toggle-btn {
+    background: rgba(0, 0, 0, 0.1);
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+body.light-mode .theme-toggle-btn:hover {
+    background: rgba(0, 0, 0, 0.15);
 }
 
 header h1 {

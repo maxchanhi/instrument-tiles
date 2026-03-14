@@ -10,7 +10,8 @@
     <div class="container">
         <header>
             <h1>🎵 Instrument Tiles</h1>
-            <p class="subtitle">Pedagogical Music Game</p>
+
+            <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Theme">🌙</button>
         </header>
 
         <div class="controls">
@@ -102,5 +103,24 @@
     <script src="midi-parser.js"></script>
     <script src="pitch-detector.js"></script>
     <script src="game.js"></script>
+    <script>
+        // Theme Toggle Functionality
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        
+        // Check for saved theme preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+            body.classList.add('light-mode');
+            themeToggle.textContent = '☀️';
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('light-mode');
+            const isLightMode = body.classList.contains('light-mode');
+            themeToggle.textContent = isLightMode ? '☀️' : '🌙';
+            localStorage.setItem('theme', isLightMode ? 'light' : 'dark');
+        });
+    </script>
 </body>
 </html>
