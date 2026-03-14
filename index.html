@@ -15,38 +15,40 @@
         </header>
 
         <div class="controls">
-            <div class="control-group">
-                <label for="midi-upload">Upload MIDI File</label>
-                <input type="file" id="midi-upload" accept=".mid,.midi">
+            <div class="controls-row">
+                <div class="control-group">
+                    <label for="midi-upload">Upload MIDI File</label>
+                    <input type="file" id="midi-upload" accept=".mid,.midi">
+                </div>
+
+                <div class="control-group">
+                    <label for="speed-control">Speed: <span id="speed-value">1.0</span>x</label>
+                    <input type="range" id="speed-control" min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+
+                <div class="control-group">
+                    <label for="duration-control">Tile Duration: <span id="duration-value">1.0</span>x</label>
+                    <input type="range" id="duration-control" min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+
+                <div class="control-group">
+                    <label for="metronome-toggle">Metronome</label>
+                    <input type="checkbox" id="metronome-toggle" checked>
+                </div>
+
+                <div class="control-group">
+                    <label for="instrument-select">Instrument</label>
+                    <select id="instrument-select">
+                        <option value="0">C Instrument (Concert Pitch)</option>
+                        <option value="-2">B♭ Instrument (Clarinet, Trumpet)</option>
+                        <option value="-3">A Instrument (A Clarinet)</option>
+                        <option value="-7">F Instrument (French Horn)</option>
+                        <option value="-9">E♭ Instrument (Alto Sax, Alto Clarinet)</option>
+                    </select>
+                </div>
             </div>
 
-            <div class="control-group">
-                <label for="speed-control">Speed: <span id="speed-value">1.0</span>x</label>
-                <input type="range" id="speed-control" min="0.5" max="2.0" step="0.1" value="1.0">
-            </div>
-
-            <div class="control-group">
-                <label for="duration-control">Tile Duration: <span id="duration-value">1.0</span>x</label>
-                <input type="range" id="duration-control" min="0.5" max="2.0" step="0.1" value="1.0">
-            </div>
-
-            <div class="control-group">
-                <label for="metronome-toggle">Metronome</label>
-                <input type="checkbox" id="metronome-toggle" checked>
-            </div>
-
-            <div class="control-group">
-                <label for="instrument-select">Instrument</label>
-                <select id="instrument-select">
-                    <option value="0">C Instrument (Concert Pitch)</option>
-                    <option value="-2">B♭ Instrument (Clarinet, Trumpet)</option>
-                    <option value="-3">A Instrument (A Clarinet)</option>
-                    <option value="-7">F Instrument (French Horn)</option>
-                    <option value="-9">E♭ Instrument (Alto Sax, Alto Clarinet)</option>
-                </select>
-            </div>
-
-            <div class="control-group button-group">
+            <div class="controls-row button-row">
                 <button id="mic-btn">🎤 Connect Mic</button>
                 <button id="preview-btn" disabled>🎵 Preview Pitch</button>
                 <button id="play-btn" disabled>▶ Start Game</button>

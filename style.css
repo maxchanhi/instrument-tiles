@@ -59,22 +59,15 @@ body.light-mode .judgment-line {
 }
 
 body.light-mode .control-group label[for="midi-upload"],
-body.light-mode .control-group select,
-body.light-mode .control-group button {
+body.light-mode .control-group select {
     background: rgba(0, 0, 0, 0.05);
     color: #1a202e;
     border: 1px solid rgba(0, 0, 0, 0.2);
 }
 
 body.light-mode .control-group label[for="midi-upload"]:hover,
-body.light-mode .control-group select:hover,
-body.light-mode .control-group button:hover:not(:disabled) {
+body.light-mode .control-group select:hover {
     background: rgba(0, 0, 0, 0.1);
-}
-
-body.light-mode .control-group button:disabled {
-    background: rgba(0, 0, 0, 0.02);
-    color: rgba(26, 32, 46, 0.3);
 }
 
 body.light-mode .pitch-display,
@@ -220,11 +213,6 @@ header h1 {
     border-radius: var(--card-radius);
     padding: 30px;
     margin-bottom: 40px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 30px;
-    justify-content: center;
-    align-items: center;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -233,6 +221,107 @@ header h1 {
     transform: translateY(-2px);
     box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
     border-color: rgba(255, 255, 255, 0.2);
+}
+
+.controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.controls-row:last-child {
+    margin-bottom: 0;
+}
+
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    padding-top: 10px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.button-row button {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    border: 1px solid var(--glass-border);
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 600;
+    outline: none;
+    min-width: 140px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.button-row button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px) scale(1.02);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
+}
+
+.button-row button:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.button-row button:disabled {
+    background: rgba(255, 255, 255, 0.02);
+    color: rgba(255, 255, 255, 0.2);
+    border-color: transparent;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+/* Specific Button Styles */
+.button-row button#mic-btn {
+    background: rgba(0, 255, 157, 0.1);
+    border-color: rgba(0, 255, 157, 0.3);
+    color: var(--success-color);
+}
+
+.button-row button#mic-btn:hover:not(:disabled) {
+    background: rgba(0, 255, 157, 0.2);
+    box-shadow: 0 0 20px rgba(0, 255, 157, 0.4);
+}
+
+.button-row button#preview-btn {
+    background: rgba(188, 19, 254, 0.1);
+    border-color: rgba(188, 19, 254, 0.3);
+    color: #e0aaff;
+}
+
+.button-row button#preview-btn:hover:not(:disabled) {
+    background: rgba(188, 19, 254, 0.2);
+    box-shadow: 0 0 20px rgba(188, 19, 254, 0.4);
+}
+
+/* Light mode button styles */
+body.light-mode .button-row button {
+    background: rgba(0, 0, 0, 0.05);
+    color: #1a202e;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+body.light-mode .button-row button:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .button-row button:disabled {
+    background: rgba(0, 0, 0, 0.02);
+    color: rgba(26, 32, 46, 0.3);
+}
+
+body.light-mode .button-row {
+    border-top-color: rgba(0, 0, 0, 0.1);
 }
 
 .control-group {
@@ -256,8 +345,7 @@ header h1 {
 }
 
 .control-group label[for="midi-upload"],
-.control-group select,
-.control-group button {
+.control-group select {
     background: rgba(255, 255, 255, 0.05);
     color: white;
     border: 1px solid var(--glass-border);
@@ -274,49 +362,15 @@ header h1 {
 }
 
 .control-group label[for="midi-upload"]:hover,
-.control-group select:hover,
-.control-group button:hover:not(:disabled) {
+.control-group select:hover {
     background: rgba(255, 255, 255, 0.1);
     transform: translateY(-2px) scale(1.02);
     border-color: var(--primary-color);
     box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
 }
 
-.control-group label[for="midi-upload"]:active,
-.control-group button:active:not(:disabled) {
+.control-group select:active {
     transform: translateY(1px);
-}
-
-/* Specific Button Styles */
-.control-group button#mic-btn {
-    background: rgba(0, 255, 157, 0.1);
-    border-color: rgba(0, 255, 157, 0.3);
-    color: var(--success-color);
-}
-
-.control-group button#mic-btn:hover:not(:disabled) {
-    background: rgba(0, 255, 157, 0.2);
-    box-shadow: 0 0 20px rgba(0, 255, 157, 0.4);
-}
-
-.control-group button#preview-btn {
-    background: rgba(188, 19, 254, 0.1);
-    border-color: rgba(188, 19, 254, 0.3);
-    color: #e0aaff;
-}
-
-.control-group button#preview-btn:hover:not(:disabled) {
-    background: rgba(188, 19, 254, 0.2);
-    box-shadow: 0 0 20px rgba(188, 19, 254, 0.4);
-}
-
-.control-group button:disabled {
-    background: rgba(255, 255, 255, 0.02);
-    color: rgba(255, 255, 255, 0.2);
-    border-color: transparent;
-    cursor: not-allowed;
-    box-shadow: none;
-    transform: none;
 }
 
 /* Game Area Layout */
