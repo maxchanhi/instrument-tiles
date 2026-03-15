@@ -81,6 +81,9 @@ class InstrumentTilesGame {
         // Micro-tuning offset (cents, ±100 cents = ±1 semitone)
         this.tuningOffsetCents = 0;
         
+        // Player name for leaderboard
+        this.playerName = 'Player';
+        
         // Fingering data (reserved interface)
         this.fingeringData = {};
         
@@ -94,6 +97,7 @@ class InstrumentTilesGame {
         this.setupEventListeners();
         this.render();
         this.loadDefaultMidi();
+        this.displayLeaderboard(); // Load and display leaderboard
     }
 
     resizeCanvas() {
@@ -197,6 +201,17 @@ class InstrumentTilesGame {
             });
         }
 
+        // Player name control
+        const playerNameInput = document.getElementById('player-name');
+        if (playerNameInput) {
+            // Initialize playerName from input value
+            this.playerName = playerNameInput.value || 'Player';
+            playerNameInput.addEventListener('input', (e) => {
+                this.playerName = e.target.value.trim() || 'Player';
+                console.log(`Player name changed to: ${this.playerName}`);
+            });
+        }
+
         // Microphone button
         document.getElementById('mic-btn').addEventListener('click', () => this.toggleMicrophone());
         
@@ -207,6 +222,12 @@ class InstrumentTilesGame {
         document.getElementById('play-btn').addEventListener('click', () => this.play());
         document.getElementById('pause-btn').addEventListener('click', () => this.pause());
         document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+        
+        // Leaderboard clear button
+        const clearLeaderboardBtn = document.getElementById('clear-leaderboard');
+        if (clearLeaderboardBtn) {
+            clearLeaderboardBtn.addEventListener('click', () => this.clearLeaderboard());
+        }
     }
 
     async handleMidiUpload(event) {
@@ -1240,12 +1261,115 @@ class InstrumentTilesGame {
         this.showEndScreen();
     }
 
+    // Leaderboard methods
+    saveScore() {
+        const accuracy = this.totalNotes > 0 
+            ? ((this.hitNotes / this.totalNotes) * 100).toFixed(1) 
+            : 0;
+        
+        const scoreEntry = {
+            name: this.playerName,
+            score: this.score,
+            accuracy: accuracy,
+            combo: this.combo,
+            date: new Date().toISOString().split('T')[0] // YYYY-MM-DD
+        };
+        
+        // Load existing leaderboard
+        let leaderboard = JSON.parse(localStorage.getItem('instrumentTilesLeaderboard') || '[]');
+        
+        // Add new score
+        leaderboard.push(scoreEntry);
+        
+        // Sort by score (descending), then by date (newest first)
+        leaderboard.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return new Date(b.date) - new Date(a.date);
+        });
+        
+        // Keep top 10 scores
+        leaderboard = leaderboard.slice(0, 10);
+        
+        // Save back to localStorage
+        localStorage.setItem('instrumentTilesLeaderboard', JSON.stringify(leaderboard));
+        
+        // Update display
+        this.displayLeaderboard();
+        
+        console.log(`Score saved: ${this.playerName} - ${this.score} points`);
+    }
+
+    loadLeaderboard() {
+        return JSON.parse(localStorage.getItem('instrumentTilesLeaderboard') || '[]');
+    }
+
+    displayLeaderboard() {
+        const leaderboard = this.loadLeaderboard();
+        const listElement = document.getElementById('leaderboard-list');
+        
+        if (!listElement) return;
+        
+        if (leaderboard.length === 0) {
+            listElement.innerHTML = '<li>No scores yet. Be the first!</li>';
+            return;
+        }
+        
+        listElement.innerHTML = '';
+        
+        leaderboard.forEach((entry, index) => {
+            const li = document.createElement('li');
+            
+            // Format position with medal emojis
+            let position = '';
+            if (index === 0) position = '🥇 ';
+            else if (index === 1) position = '🥈 ';
+            else if (index === 2) position = '🥉 ';
+            else position = `${index + 1}. `;
+            
+            li.innerHTML = `
+                <span class="player-name">${position}${entry.name}</span>
+                <span class="player-score">${entry.score}</span>
+                <span class="player-date">${entry.date}</span>
+            `;
+            
+            listElement.appendChild(li);
+        });
+    }
+
+    clearLeaderboard() {
+        if (confirm('Are you sure you want to clear all leaderboard scores?')) {
+            localStorage.removeItem('instrumentTilesLeaderboard');
+            this.displayLeaderboard();
+            this.updateStatus('Leaderboard cleared');
+        }
+    }
+
     showEndScreen() {
         const accuracy = this.totalNotes > 0 
             ? ((this.hitNotes / this.totalNotes) * 100).toFixed(1) 
             : 0;
         
-        alert(`🎵 Game Over!\n\nScore: ${this.score}\nAccuracy: ${accuracy}%\nCombo: ${this.combo}\n\nChallenge yourself for a higher score!`);
+        // Save score to leaderboard
+        this.saveScore();
+        
+        // Check leaderboard position
+        const leaderboard = this.loadLeaderboard();
+        const playerPosition = leaderboard.findIndex(entry => 
+            entry.name === this.playerName && entry.score === this.score
+        );
+        
+        let positionMessage = '';
+        if (playerPosition !== -1) {
+            if (playerPosition === 0) {
+                positionMessage = '\n🏆 NEW HIGH SCORE! 🏆\nYou\'re #1 on the leaderboard!';
+            } else if (playerPosition < 3) {
+                positionMessage = `\n🎉 You're #${playerPosition + 1} on the leaderboard!`;
+            } else {
+                positionMessage = `\n📊 You're ranked #${playerPosition + 1} on the leaderboard.`;
+            }
+        }
+        
+        alert(`🎵 Game Over!\n\nScore: ${this.score}\nAccuracy: ${accuracy}%\nCombo: ${this.combo}${positionMessage}\n\nCheck the leaderboard on the right!`);
     }
 }
 

@@ -61,6 +61,11 @@
                     <label for="count-in-beats">Count-in Beats</label>
                     <input type="number" id="count-in-beats" min="1" max="8" step="1" value="2">
                 </div>
+
+                <div class="control-group">
+                    <label for="player-name">Player Name</label>
+                    <input type="text" id="player-name" maxlength="20" placeholder="Enter your name" value="Player">
+                </div>
             </div>
 
             <div class="controls-row button-row">
@@ -94,6 +99,16 @@
                 <div class="pitch-display">
                     <h3>Detected Pitch</h3>
                     <p id="current-pitch">--</p>
+                </div>
+            </div>
+
+            <div class="leaderboard-panel">
+                <h3>Leaderboard 🏆</h3>
+                <div class="leaderboard-content">
+                    <ol id="leaderboard-list">
+                        <li>Loading scores...</li>
+                    </ol>
+                    <button id="clear-leaderboard" class="small-btn">Clear Scores</button>
                 </div>
             </div>
         </div>
