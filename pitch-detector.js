@@ -16,6 +16,7 @@ class PitchDetector {
         this.minFrequency = 52.0;  // Min frequency (C2)
         this.maxFrequency = 2093.0; // Max frequency (C7)
         this.smoothing = 0.5; // Lower smoothing, increase response speed
+        this.tuningOffsetCents = 0; // Micro-tuning offset in cents (±100 = ±1 semitone)
         
         // Continuous detection buffer, improve accuracy
         this.pitchHistory = [];
@@ -219,7 +220,8 @@ class PitchDetector {
     }
 
     frequencyToMidi(frequency) {
-        return Math.round(12 * Math.log2(frequency / 440) + 69);
+        const midi = 12 * Math.log2(frequency / 440) + 69 - (this.tuningOffsetCents / 100);
+        return Math.round(midi);
     }
 
     midiToNoteName(midi) {

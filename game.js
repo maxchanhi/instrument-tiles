@@ -78,6 +78,9 @@ class InstrumentTilesGame {
         this.transpositionInterval = 0; // Semitones: 0 = C instrument, -2 = B♭, -9 = E♭, etc.
         this.instrumentName = 'C Instrument';
         
+        // Micro-tuning offset (cents, ±100 cents = ±1 semitone)
+        this.tuningOffsetCents = 0;
+        
         // Fingering data (reserved interface)
         this.fingeringData = {};
         
@@ -140,6 +143,22 @@ class InstrumentTilesGame {
                     this.parseMidiData();
                     this.render();
                 }
+            });
+        }
+
+        // Tuning offset control
+        const tuningOffsetControl = document.getElementById('tuning-offset');
+        if (tuningOffsetControl) {
+            // Initialize tuningOffsetCents from slider value
+            this.tuningOffsetCents = parseInt(tuningOffsetControl.value);
+            this.pitchDetector.tuningOffsetCents = this.tuningOffsetCents;
+            document.getElementById('tuning-offset-value').textContent = this.tuningOffsetCents;
+            
+            tuningOffsetControl.addEventListener('input', (e) => {
+                this.tuningOffsetCents = parseInt(e.target.value);
+                this.pitchDetector.tuningOffsetCents = this.tuningOffsetCents;
+                document.getElementById('tuning-offset-value').textContent = this.tuningOffsetCents;
+                console.log(`Tuning offset changed to: ${this.tuningOffsetCents} cents`);
             });
         }
 
