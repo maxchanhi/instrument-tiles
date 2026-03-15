@@ -28,7 +28,7 @@ class InstrumentTilesGame {
         this.canvasHeight = 0;
         
         // Game parameters
-        this.noteSpeed = 520; // Note falling speed (pixels/sec)
+        this.noteSpeed = 200; // Note falling speed (pixels/sec) - drastically reduced for much slower dropping
         this.judgmentLineY = 0;
         this.hitWindow = {
             perfect: 80,    // Perfect judgment window (ms)
@@ -65,7 +65,7 @@ class InstrumentTilesGame {
         this.tileDurationRatio = 1.0;
 
         this.metronomeEnabled = true;
-        this.beatsPerBar = 3;
+        this.beatsPerBar = 2; // Default count-in beats, can be changed via UI
         this.metronomeBeatUnit = 1;
         this.metronomeNextBeat = 0;
         this.metronomeGridStart = 0;
@@ -140,6 +140,23 @@ class InstrumentTilesGame {
                 this.instrumentName = e.target.options[e.target.selectedIndex].text;
                 console.log(`Instrument changed: ${this.instrumentName}, transposition: ${this.transpositionInterval} semitones`);
                 this.updateStatus(`Using ${this.instrumentName} - Written pitch displayed, sounding pitch detected`);
+            });
+        }
+
+        // Count-in beats control
+        const countInBeatsInput = document.getElementById('count-in-beats');
+        if (countInBeatsInput) {
+            // Initialize beatsPerBar from input value (default 2)
+            const initialValue = parseInt(countInBeatsInput.value);
+            if (initialValue >= 1 && initialValue <= 8) {
+                this.beatsPerBar = initialValue;
+            }
+            countInBeatsInput.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                if (value >= 1 && value <= 8) {
+                    this.beatsPerBar = value;
+                    console.log(`Count-in beats changed to: ${this.beatsPerBar}`);
+                }
             });
         }
 
