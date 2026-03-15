@@ -125,6 +125,24 @@ class InstrumentTilesGame {
             }
         });
 
+        // Note speed control
+        const noteSpeedControl = document.getElementById('note-speed-control');
+        if (noteSpeedControl) {
+            // Initialize noteSpeed from slider value
+            this.noteSpeed = parseInt(noteSpeedControl.value);
+            document.getElementById('note-speed-value').textContent = this.noteSpeed;
+            
+            noteSpeedControl.addEventListener('input', (e) => {
+                this.noteSpeed = parseInt(e.target.value);
+                document.getElementById('note-speed-value').textContent = this.noteSpeed;
+                // Recalculate note positions with new note speed
+                if (this.midiData) {
+                    this.parseMidiData();
+                    this.render();
+                }
+            });
+        }
+
         const metronomeToggle = document.getElementById('metronome-toggle');
         if (metronomeToggle) {
             metronomeToggle.addEventListener('change', (e) => {
