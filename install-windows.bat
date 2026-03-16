@@ -4,20 +4,20 @@ echo   Instrument Tiles - Windows Installer
 echo ========================================
 echo.
 
-:: Check if Node.js is installed
+rem Check if Node.js is installed
 where node >nul 2>nul
 if %errorlevel% neq 0 (
     echo [1/3] Installing Node.js...
     echo.
     echo Downloading Node.js installer...
     
-    :: Use PowerShell to download Node.js LTS
+    rem Use PowerShell to download Node.js LTS
     powershell -Command "& {Invoke-WebRequest -Uri 'https://nodejs.org/dist/v22.11.0/node-v22.11.0-x64.msi' -OutFile '%TEMP%\nodejs.msi'}"
     
-    echo Installing Node.js (this may take a minute)...
+    echo Installing Node.js ^(this may take a minute^)...
     msiexec /i "%TEMP%\nodejs.msi" /qn /norestart
     
-    :: Refresh environment variables
+    rem Refresh environment variables
     refreshenv >nul 2>nul
     call "%ProgramFiles%\nodejs\nodevars.bat"
     

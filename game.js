@@ -12,7 +12,7 @@ class InstrumentTilesGame {
         this.isPaused = false;
         this.midiData = null;
         this.notes = [];
-        this.speed = 1.0;
+        this.speed = 2.0; // Default to 120 BPM (2 beats per second)
         
         // Game stats
         this.score = 0;
@@ -72,6 +72,7 @@ class InstrumentTilesGame {
         this.metronomeRunning = false;
         this.metronomeGain = 0.2;
         this.metronomeClickDuration = 0.06;
+        this.metronomeFlash = 0.0; // Visual metronome indicator opacity
         this.countInTimer = null;
         
         // Transposing instrument support
@@ -173,6 +174,21 @@ class InstrumentTilesGame {
             });
         }
 
+        // BPM Input Control
+        const bpmInput = document.getElementById('bpm-input');
+        if (bpmInput) {
+            bpmInput.addEventListener('input', (e) => {
+                const newBpm = parseFloat(e.target.value);
+                if (newBpm && newBpm > 0) {
+                    this.speed = newBpm / 60;
+                    if (this.midiData) {
+                        this.midiData.bpm = newBpm; // Update parser data too
+                    }
+                    console.log(`BPM updated to: ${newBpm} (Speed: ${this.speed.toFixed(2)})`);
+                }
+            });
+        }
+
         // Instrument selector (transposing instruments)
         const instrumentSelect = document.getElementById('instrument-select');
         if (instrumentSelect) {
@@ -244,6 +260,18 @@ class InstrumentTilesGame {
             this.midiData = new SimpleMidiParser(arrayBuffer);
             console.log('MIDI parsed successfully:', this.midiData);
             
+            // Set playback speed based on MIDI BPM (BPM / 60 = beats per second)
+            if (this.midiData.bpm) {
+                this.speed = this.midiData.bpm / 60;
+                console.log(`Playback speed set to: ${this.speed.toFixed(2)} beats/sec (BPM: ${this.midiData.bpm.toFixed(1)})`);
+                
+                // Update UI BPM display
+                const bpmInput = document.getElementById('bpm-input');
+                if (bpmInput) {
+                    bpmInput.value = Math.round(this.midiData.bpm);
+                }
+            }
+            
             this.parseMidiData();
             this.updateStatus(`MIDI file loaded successfully! Total ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
             this.enableControls();
@@ -269,6 +297,18 @@ class InstrumentTilesGame {
 
             this.midiData = new SimpleMidiParser(arrayBuffer);
             console.log('Default MIDI parsed successfully:', this.midiData);
+
+            // Set playback speed based on MIDI BPM (BPM / 60 = beats per second)
+            if (this.midiData.bpm) {
+                this.speed = this.midiData.bpm / 60;
+                console.log(`Playback speed set to: ${this.speed.toFixed(2)} beats/sec (BPM: ${this.midiData.bpm.toFixed(1)})`);
+
+                // Update UI BPM display
+                const bpmInput = document.getElementById('bpm-input');
+                if (bpmInput) {
+                    bpmInput.value = Math.round(this.midiData.bpm);
+                }
+            }
 
             this.parseMidiData();
             this.updateStatus(`Default song loaded! Total ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
@@ -561,17 +601,49 @@ class InstrumentTilesGame {
             // Calculate first note time and time to reach judgment line
             const firstNoteTime = this.notes.length > 0 ? this.notes[0].startTime : 0;
             const timeToTop = this.judgmentLineY / this.noteSpeed; // Time from top to judgment line (sec)
+            
+            // Adjust start time so the first note hits the line exactly on a beat
+            // Find the nearest beat before or at firstNoteTime
+            const firstNoteBeat = Math.round(firstNoteTime / this.metronomeBeatUnit) * this.metronomeBeatUnit;
+            
+            // We want the game to start such that at (firstNoteTime), the note is at judgment line
+            // But we also want the metronome to be aligned with the grid
+            // So we set the initial time relative to the grid
+            
             const initialAdjustedTime = firstNoteTime - timeToTop;
             
             // Set startTime to let first note start from top
             this.resetStats();
             this.resetNotes();
 
+            // Align metronome grid to start exactly at 0 or a multiple of beat unit
+            // Since our notes.startTime are already in "beats" (or seconds that correspond to beats if speed=1)
+            // We just need to ensure the metronome starts counting from a beat-aligned time
+            
             const countInDuration = this.beatsPerBar * (this.metronomeBeatUnit / this.speed);
             const gameStartAudioTime = this.audioContext.currentTime + countInDuration;
+            
+            // This is the key: startTime defines 0.0 adjusted time
+            // If we want the first note (at firstNoteTime) to hit the line at (gameStartAudioTime + timeToTop/speed)
+            // Then:
+            // audioTime = startTime + (adjustedTime / speed)
+            // adjustedTime = (audioTime - startTime) * speed
+            // At hit moment: audioTime = gameStartAudioTime + (timeToTop / speed)
+            // adjustedTime should be firstNoteTime
+            // firstNoteTime = (gameStartAudioTime + timeToTop/speed - startTime) * speed
+            // firstNoteTime/speed = gameStartAudioTime + timeToTop/speed - startTime
+            // startTime = gameStartAudioTime + timeToTop/speed - firstNoteTime/speed
+            // startTime = gameStartAudioTime - (firstNoteTime - timeToTop) / speed
+            
             this.startTime = gameStartAudioTime - (initialAdjustedTime / this.speed);
+            
+            // Initialize metronome to align with the grid (0, 1, 2, 3...)
+            // We want the next beat to be the first integer beat after initialAdjustedTime
             this.initializeMetronomeClock(initialAdjustedTime);
-            this.playCountIn(gameStartAudioTime, countInDuration);
+            
+            // Play count-in based on the same grid that the first note belongs to
+            // This aligns the clicks perfectly with the first note's arrival
+            this.playCountIn(firstNoteBeat);
             this.updateStatus('Count-in...');
 
             document.getElementById('play-btn').disabled = true;
@@ -718,15 +790,30 @@ class InstrumentTilesGame {
     }
 
     initializeMetronomeClock(initialAdjustedTime) {
-        this.metronomeGridStart = initialAdjustedTime;
-        this.metronomeNextBeat = initialAdjustedTime;
+        // Grid should start at 0 (or nearest beat)
+        this.metronomeGridStart = 0;
+        
+        // Find the next beat that is >= initialAdjustedTime
+        // This ensures the metronome clicks are on integer beats (0, 1, 2...)
+        this.metronomeNextBeat = Math.ceil(initialAdjustedTime / this.metronomeBeatUnit) * this.metronomeBeatUnit;
+        
+        // If we are exactly on a beat, start from there
+        if (this.metronomeNextBeat < initialAdjustedTime) {
+             this.metronomeNextBeat += this.metronomeBeatUnit;
+        }
     }
 
-    playCountIn(gameStartAudioTime, countInDuration) {
-        const beatDuration = this.metronomeBeatUnit / this.speed;
-        const startTime = gameStartAudioTime - countInDuration;
-        for (let i = 0; i < this.beatsPerBar; i++) {
-            this.playMetronomeClick(startTime + i * beatDuration, i === 0);
+    playCountIn(firstNoteBeat) {
+        // Find the beats that occur exactly before the first note's beat
+        // These are the same beats as the song's grid
+        for (let i = this.beatsPerBar; i > 0; i--) {
+            const countInBeat = firstNoteBeat - i;
+            const audioTime = this.startTime + (countInBeat * this.metronomeBeatUnit / this.speed);
+            
+            // Only play if it's in the future (though count-in should always be)
+            if (audioTime >= this.audioContext.currentTime) {
+                this.playMetronomeClick(audioTime, i === this.beatsPerBar);
+            }
         }
     }
 
@@ -745,6 +832,20 @@ class InstrumentTilesGame {
 
         oscillator.start(time);
         oscillator.stop(time + this.metronomeClickDuration + 0.02);
+        
+        // Visual indicator: Flash the judgment line
+        // Calculate when to flash (in game loop time)
+        // Since audio scheduling is ahead of visual render, we need to schedule the flash
+        const timeUntilClick = time - this.audioContext.currentTime;
+        if (timeUntilClick >= 0) {
+            setTimeout(() => {
+                this.triggerMetronomeFlash();
+            }, timeUntilClick * 1000);
+        }
+    }
+    
+    triggerMetronomeFlash() {
+        this.metronomeFlash = 1.0; // Opacity
     }
 
     startPitchDetection() {
@@ -1122,6 +1223,21 @@ class InstrumentTilesGame {
     }
 
     drawJudgmentLine() {
+        // Flash effect
+        if (this.metronomeFlash > 0) {
+            this.ctx.shadowBlur = 20;
+            this.ctx.shadowColor = `rgba(255, 255, 255, ${this.metronomeFlash})`;
+            this.ctx.strokeStyle = `rgba(255, 255, 255, ${this.metronomeFlash})`;
+            this.ctx.lineWidth = 5;
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, this.judgmentLineY);
+            this.ctx.lineTo(this.canvasWidth, this.judgmentLineY);
+            this.ctx.stroke();
+            
+            this.metronomeFlash -= 0.1; // Fade out
+            if (this.metronomeFlash < 0) this.metronomeFlash = 0;
+        }
+
         this.ctx.strokeStyle = '#ff6b6b';
         this.ctx.lineWidth = 3;
         this.ctx.shadowColor = '#ff6b6b';

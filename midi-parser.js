@@ -5,6 +5,7 @@ class SimpleMidiParser {
         this.pos = 0;
         this.tracks = [];
         this.ticksPerBeat = 480;
+        this.bpm = 120; // Default MIDI tempo
         this.parse();
     }
 
@@ -77,9 +78,17 @@ class SimpleMidiParser {
                     // Track end
                     this.pos += metaLength;
                     break;
+                } else if (metaType === 0x51 && metaLength === 3) {
+                    // Set Tempo (microseconds per quarter note)
+                    const microsecondsPerBeat = (this.data.getUint8(this.pos) << 16) |
+                                                 (this.data.getUint8(this.pos + 1) << 8) |
+                                                 (this.data.getUint8(this.pos + 2));
+                    this.bpm = 60000000 / microsecondsPerBeat;
+                     console.log(`BPM: ${this.bpm.toFixed(2)}`);
+                     this.pos += 3;
+                } else {
+                    this.pos += metaLength;
                 }
-                
-                this.pos += metaLength;
             } else if (status === 0xF0 || status === 0xF7) {
                 // SysEx event
                 const sysexLength = this.readVarInt();
