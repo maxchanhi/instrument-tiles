@@ -7,28 +7,24 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🎵 Instrument Tiles</h1>
+    <div class="main-layout">
+        <div class="container">
+            <header>
+                <h1>🎵 Instrument Tiles</h1>
+                <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Theme">🌙</button>
+            </header>
 
-            <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Theme">🌙</button>
-        </header>
+            <div class="controls">
+                <div class="controls-row">
+                    <div class="control-group">
+                        <label for="midi-upload">Upload MIDI File</label>
+                        <input type="file" id="midi-upload" accept=".mid,.midi">
+                    </div>
 
-        <div class="controls">
-            <div class="controls-row">
-                <div class="control-group">
-                    <label for="midi-upload">Upload MIDI File</label>
-                    <input type="file" id="midi-upload" accept=".mid,.midi">
-                </div>
-
-                <div class="control-group">
-                    <label for="speed-control">Speed: <span id="speed-value">1.0</span>x</label>
-                    <input type="range" id="speed-control" min="0.5" max="2.0" step="0.1" value="1.0">
-                </div>
 
                 <div class="control-group">
-                    <label for="duration-control">Tile Duration: <span id="duration-value">1.0</span>x</label>
-                    <input type="range" id="duration-control" min="0.5" max="2.0" step="0.1" value="1.0">
+                    <label for="duration-control">Tile Duration: <span id="duration-value">0.8</span>x</label>
+                    <input type="range" id="duration-control" min="0.5" max="2.0" step="0.1" value="0.8">
                 </div>
 
                 <div class="control-group">
@@ -131,8 +127,32 @@
         </div>
 
         <footer class="copyright-footer">
-            <p>&copy; Chan Chak Hang Max 2026 | version 2.0.0</p>
+            <p>&copy; Chan Chak Hang Max 2026 | version 2.1.0</p>
         </footer>
+
+        <!-- MIDI Drawer -->
+        <div class="midi-drawer" id="midi-drawer">
+            <div class="drawer-header">
+                <h2>🎵 Library</h2>
+                <button id="drawer-toggle" class="drawer-toggle-btn">◀</button>
+            </div>
+            <div class="drawer-content">
+                <div class="provided-midis">
+                    <h3>Built-in MIDIs</h3>
+                    <div class="midi-list">
+                        <button class="midi-item" data-path="midi/BananaBoat.mid">🍌 Banana Boat</button>
+                        <button class="midi-item" data-path="midi/SimpleGift.mid">🎁 Simple Gift</button>
+                        <button class="midi-item" data-path="midi/ThistleFairy.mid">🧚 Thistle Fairy</button>
+                    </div>
+                </div>
+                <div class="custom-midis">
+                    <h3>Your MIDIs</h3>
+                    <div class="midi-list" id="custom-midi-list">
+                        <!-- Custom MIDIs will appear here -->
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 使用本地 MIDI 解析器，无需外部依赖 -->

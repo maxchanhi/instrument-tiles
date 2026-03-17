@@ -62,7 +62,7 @@ class InstrumentTilesGame {
         this.holdDuration = 0; // How long player has held the note
 
         // Tile duration ratio (1.0 = original, 0.5 = half length, 2.0 = double length)
-        this.tileDurationRatio = 1.0;
+        this.tileDurationRatio = 0.8;
 
         this.metronomeEnabled = true;
         this.beatsPerBar = 2; // Default count-in beats, can be changed via UI
@@ -99,6 +99,26 @@ class InstrumentTilesGame {
         this.render();
         this.loadDefaultMidi();
         this.displayLeaderboard(); // Load and display leaderboard
+        
+        // Auto-connect microphone on page load
+        // Note: Browsers usually block mic access without user interaction.
+        // We attempt it here, and if it fails, the user can still click manually.
+        setTimeout(() => {
+            this.autoConnectMicrophone();
+        }, 1000);
+    }
+
+    async autoConnectMicrophone() {
+        console.log('Attempting auto-connect microphone...');
+        // Only try if not already enabled
+        if (!this.pitchDetectionEnabled) {
+            try {
+                await this.toggleMicrophone();
+            } catch (error) {
+                console.warn('Auto-connect microphone failed:', error);
+                this.updateStatus('Click "Connect Mic" to start');
+            }
+        }
     }
 
     resizeCanvas() {
@@ -114,12 +134,6 @@ class InstrumentTilesGame {
         // MIDI file upload
         document.getElementById('midi-upload').addEventListener('change', (e) => {
             this.handleMidiUpload(e);
-        });
-
-        // Speed control
-        document.getElementById('speed-control').addEventListener('input', (e) => {
-            this.speed = parseFloat(e.target.value);
-            document.getElementById('speed-value').textContent = this.speed.toFixed(1);
         });
 
         // Tile duration ratio control
@@ -230,6 +244,31 @@ class InstrumentTilesGame {
 
         // Microphone button
         document.getElementById('mic-btn').addEventListener('click', () => this.toggleMicrophone());
+
+        // MIDI Drawer Toggling
+        const drawer = document.getElementById('midi-drawer');
+        const drawerToggle = document.getElementById('drawer-toggle');
+        if (drawerToggle) {
+            drawerToggle.addEventListener('click', () => {
+                drawer.classList.toggle('collapsed');
+            });
+        }
+
+        // MIDI Drawer Item Clicking
+        document.querySelectorAll('.midi-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const path = item.getAttribute('data-path');
+                this.loadMidiFromPath(path);
+                
+                // Set active state in UI
+                document.querySelectorAll('.midi-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+        });
+
+        // Set default active in drawer
+        const defaultItem = document.querySelector('.midi-item[data-path="midi/BananaBoat.mid"]');
+        if (defaultItem) defaultItem.classList.add('active');
         
         // Preview button
         document.getElementById('preview-btn').addEventListener('click', () => this.previewNotes());
@@ -250,44 +289,93 @@ class InstrumentTilesGame {
         const file = event.target.files[0];
         if (!file) return;
 
-        this.updateStatus('Loading MIDI file...');
+        this.updateStatus(`Loading ${file.name}...`);
+        this.reset();
 
         try {
             const arrayBuffer = await file.arrayBuffer();
-            console.log('MIDI file size:', file.size, 'bytes');
+            this.processMidiBuffer(arrayBuffer, file.name);
             
-            // Use local MIDI parser
-            this.midiData = new SimpleMidiParser(arrayBuffer);
-            console.log('MIDI parsed successfully:', this.midiData);
-            
-            // Set playback speed based on MIDI BPM (BPM / 60 = beats per second)
-            if (this.midiData.bpm) {
-                this.speed = this.midiData.bpm / 60;
-                console.log(`Playback speed set to: ${this.speed.toFixed(2)} beats/sec (BPM: ${this.midiData.bpm.toFixed(1)})`);
-                
-                // Update UI BPM display
-                const bpmInput = document.getElementById('bpm-input');
-                if (bpmInput) {
-                    bpmInput.value = Math.round(this.midiData.bpm);
-                }
-            }
-            
-            this.parseMidiData();
-            this.updateStatus(`MIDI file loaded successfully! Total ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
-            this.enableControls();
-            this.render();
+            // Add to drawer "Your MIDIs"
+            this.addCustomMidiToDrawer(file.name, arrayBuffer);
         } catch (error) {
             console.error('MIDI load failed:', error);
-            console.error('Error stack:', error.stack);
-            this.updateStatus(`MIDI file load failed: ${error.message}`);
+            this.updateStatus(`MIDI load failed: ${error.message}`);
         }
+    }
+
+    async loadMidiFromPath(path) {
+        this.updateStatus(`Loading ${path}...`);
+        this.reset();
+
+        try {
+            const response = await fetch(path);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            const arrayBuffer = await response.arrayBuffer();
+            this.processMidiBuffer(arrayBuffer, path.split('/').pop());
+        } catch (error) {
+            console.error('Error loading MIDI from path:', error);
+            this.updateStatus(`Error loading MIDI: ${error.message}`);
+        }
+    }
+
+    // Common logic to process MIDI buffer
+    processMidiBuffer(arrayBuffer, fileName) {
+        console.log(`Processing MIDI: ${fileName}, size: ${arrayBuffer.byteLength} bytes`);
+        
+        // Use local MIDI parser
+        this.midiData = new SimpleMidiParser(arrayBuffer);
+        console.log('MIDI parsed successfully:', this.midiData);
+        
+        // Set playback speed based on MIDI BPM (BPM / 60 = beats per second)
+        if (this.midiData.bpm) {
+            this.speed = this.midiData.bpm / 60;
+            console.log(`Playback speed set to: ${this.speed.toFixed(2)} beats/sec (BPM: ${this.midiData.bpm.toFixed(1)})`);
+            
+            // Update UI BPM display
+            const bpmInput = document.getElementById('bpm-input');
+            if (bpmInput) {
+                bpmInput.value = Math.round(this.midiData.bpm);
+            }
+        }
+        
+        this.parseMidiData();
+        this.updateStatus(`${fileName} loaded! ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
+        this.enableControls();
+        this.render();
+    }
+
+    addCustomMidiToDrawer(name, buffer) {
+        const list = document.getElementById('custom-midi-list');
+        if (!list) return;
+
+        // Check if already in list
+        const existing = Array.from(list.querySelectorAll('.midi-item'))
+                             .find(item => item.textContent.includes(name));
+        if (existing) return;
+
+        const button = document.createElement('button');
+        button.className = 'midi-item';
+        button.innerHTML = `📄 ${name}`;
+        button.addEventListener('click', () => {
+            this.processMidiBuffer(buffer, name);
+            document.querySelectorAll('.midi-item').forEach(i => i.classList.remove('active'));
+            button.classList.add('active');
+        });
+
+        list.appendChild(button);
+        
+        // Auto-select the newly uploaded MIDI
+        document.querySelectorAll('.midi-item').forEach(i => i.classList.remove('active'));
+        button.classList.add('active');
     }
 
     async loadDefaultMidi() {
         this.updateStatus('Loading default MIDI file...');
 
         try {
-            const response = await fetch('BananaBoat.mid');
+            const response = await fetch('midi/BananaBoat.mid');
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -340,7 +428,7 @@ class InstrumentTilesGame {
                     // Apply duration ratio to tile length
                     const scaledDuration = note.duration * this.tileDurationRatio;
                     // Limit max display length
-                    const displayDuration = Math.min(scaledDuration, 0.9 * this.tileDurationRatio);
+                    const displayDuration = Math.min(scaledDuration, 1 * this.tileDurationRatio);
                     
                     const noteObj = {
                         midi: note.midi,
