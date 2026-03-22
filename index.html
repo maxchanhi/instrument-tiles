@@ -81,6 +81,27 @@
                 <div class="judgment-line" id="judgment-line"></div>
             </div>
 
+            <!-- Navigation Bar for Music Position -->
+            <div class="navigation-bar" id="navigation-bar">
+                <div class="nav-controls">
+                    <button id="nav-rewind" class="nav-btn" title="Rewind 10 seconds">⏪</button>
+                    <button id="nav-back" class="nav-btn" title="Back 5 seconds">◀◀</button>
+                    
+                    <button id="nav-play-pause" class="nav-btn play-pause-btn" title="Play/Pause">▶</button>
+                    
+                    <div class="position-slider-container">
+                        <input type="range" id="position-slider" class="position-slider" min="0" max="100" value="0">
+                        <div class="position-labels">
+                            <span id="current-time">0:00</span>
+                            <span id="total-time">0:00</span>
+                        </div>
+                    </div>
+                    
+                    <button id="nav-forward" class="nav-btn" title="Forward 5 seconds">▶▶</button>
+                    <button id="nav-fast-forward" class="nav-btn" title="Fast Forward 10 seconds">⏩</button>
+                </div>
+            </div>
+
             <div class="info-panel">
                 <div class="score-display">
                     <h3>Score</h3>

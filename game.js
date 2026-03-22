@@ -1577,8 +1577,138 @@ class InstrumentTilesGame {
     }
 }
 
+// Integrated Navigation System
+class MusicNavigation {
+    constructor(gameInstance) {
+        this.game = gameInstance;
+        this.positionSlider = null;
+        this.currentTimeDisplay = null;
+        this.totalTimeDisplay = null;
+        this.playPauseBtn = null;
+        
+        this.init();
+    }
+    
+    init() {
+        // Get DOM elements
+        this.positionSlider = document.getElementById('position-slider');
+        this.currentTimeDisplay = document.getElementById('current-time');
+        this.totalTimeDisplay = document.getElementById('total-time');
+        this.playPauseBtn = document.getElementById('nav-play-pause');
+        
+        // Add event listeners
+        this.addEventListeners();
+        
+        // Initial update
+        this.update();
+    }
+    
+    addEventListeners() {
+        // Position slider - seek to position
+        this.positionSlider.addEventListener('input', (e) => {
+            const percent = parseInt(e.target.value) / 100;
+            const targetTime = percent * this.game.songLength;
+            this.game.currentTime = targetTime;
+            
+            // If MIDI player exists, seek to position
+            if (this.game.midiPlayer) {
+                this.game.midiPlayer.currentTime = targetTime;
+            }
+            
+            this.update();
+        });
+        
+        // Navigation buttons
+        const buttonActions = {
+            'nav-rewind': () => this.seekRelative(-10),
+            'nav-back': () => this.seekRelative(-5),
+            'nav-play-pause': () => this.game.togglePlay(),
+            'nav-forward': () => this.seekRelative(5),
+            'nav-fast-forward': () => this.seekRelative(10)
+        };
+        
+        Object.keys(buttonActions).forEach(id => {
+            const button = document.getElementById(id);
+            if (button) {
+                button.addEventListener('click', buttonActions[id]);
+            }
+        });
+        
+        // Spacebar for play/pause
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                this.game.togglePlay();
+            }
+            
+            // Arrow keys for navigation
+            if (e.code === 'ArrowLeft') {
+                e.preventDefault();
+                this.seekRelative(-5);
+            }
+            if (e.code === 'ArrowRight') {
+                e.preventDefault();
+                this.seekRelative(5);
+            }
+        });
+    }
+    
+    seekRelative(seconds) {
+        if (!this.game.midiPlayer) return;
+        
+        const newTime = Math.max(0, Math.min(this.game.songLength, this.game.currentTime + seconds));
+        this.game.currentTime = newTime;
+        this.game.midiPlayer.currentTime = newTime;
+        this.update();
+    }
+    
+    update() {
+        // Update slider position based on current time
+        if (this.game.songLength > 0) {
+            const percent = (this.game.currentTime / this.game.songLength) * 100;
+            this.positionSlider.value = percent;
+            
+            // Update time displays
+            this.currentTimeDisplay.textContent = this.formatTime(this.game.currentTime);
+            this.totalTimeDisplay.textContent = this.formatTime(this.game.songLength);
+        }
+        
+        // Update play/pause button state
+        this.updatePlayButton();
+    }
+    
+    updatePlayButton() {
+        if (this.playPauseBtn) {
+            if (this.game.isPlaying) {
+                this.playPauseBtn.classList.add('playing');
+                this.playPauseBtn.title = 'Pause';
+                this.playPauseBtn.innerHTML = '⏸';
+            } else {
+                this.playPauseBtn.classList.remove('playing');
+                this.playPauseBtn.title = 'Play';
+                this.playPauseBtn.innerHTML = '▶';
+            }
+        }
+    }
+    
+    formatTime(seconds) {
+        if (seconds < 0) return '0:00';
+        
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    // Public method to refresh navigation state
+    refresh() {
+        this.update();
+    }
+}
+
 // Initialize game
 let game;
+let musicNav;
 document.addEventListener('DOMContentLoaded', () => {
     game = new InstrumentTilesGame();
+    musicNav = new MusicNavigation(game);
 });
