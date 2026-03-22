@@ -408,7 +408,7 @@ class InstrumentTilesGame {
             this.render();
         } catch (error) {
             console.error('Default MIDI load failed:', error);
-            this.updateStatus('Please upload a MIDI file to start the game');
+            this.updateStatus('Please select a MIDI from the Library to start the game');
         }
     }
 
@@ -868,7 +868,7 @@ class InstrumentTilesGame {
         document.getElementById('play-btn').disabled = !this.midiData;
         document.getElementById('pause-btn').disabled = true;
 
-        this.updateStatus(this.midiData ? 'Reset, click Start Game' : 'Please upload a MIDI file to start');
+        this.updateStatus(this.midiData ? 'Reset, click Start Game' : 'Please select a MIDI from the Library to start');
         
         this.currentTime = 0;
         
@@ -1172,19 +1172,19 @@ class InstrumentTilesGame {
 
         // Sustain-based judgment
         const sustainPercentage = note.accumulatedHoldTime / note.duration;
-        
-        if (sustainPercentage >= 0.85) {
+
+        if (sustainPercentage >= 0.6) {
             judgment = 'perfect';
             scoreAdd = 150;
             this.combo++;
-        } else if (sustainPercentage >= 0.5) {
+        } else if (sustainPercentage >= 0.3) {
             judgment = 'good';
             scoreAdd = 75;
             this.combo++;
-        } else if (sustainPercentage > 0) {
-            judgment = 'miss';
-            scoreAdd = 0;
-            this.combo = 0;
+        } else if (sustainPercentage >= 0.1) {
+            judgment = 'ok';
+            scoreAdd = 25;
+            this.combo++;
         } else {
             // Truly missed (0 sustain)
             judgment = 'miss';
@@ -1202,7 +1202,7 @@ class InstrumentTilesGame {
             
             this.score += scoreAdd + (this.combo > 10 ? Math.floor(this.combo / 2) : 0);
             this.updateStats();
-            this.showJudgment(judgment, sustainPercentage >= 0.85);
+            this.showJudgment(judgment, sustainPercentage >= 0.80);
             
             console.log(`Judged: ${note.name}, Sustain: ${(sustainPercentage * 100).toFixed(1)}%, Judgment: ${judgment}`);
         }
@@ -1373,7 +1373,7 @@ class InstrumentTilesGame {
             this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             this.ctx.font = '20px Arial';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText('Please upload a MIDI file to start', this.canvasWidth / 2, this.canvasHeight / 2);
+            this.ctx.fillText('Please select a MIDI from the Library to start', this.canvasWidth / 2, this.canvasHeight / 2);
         }
     }
 

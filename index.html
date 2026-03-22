@@ -17,53 +17,42 @@
             <div class="controls">
                 <div class="controls-row">
                     <div class="control-group">
-                        <label for="midi-upload">Upload MIDI File</label>
-                        <input type="file" id="midi-upload" accept=".mid,.midi">
+                        <label for="duration-control">Tile Duration: <span id="duration-value">0.8</span>x</label>
+                        <input type="range" id="duration-control" min="0.5" max="2.0" step="0.1" value="0.8">
                     </div>
 
+                    <div class="control-group">
+                        <label for="note-speed-control">Note Speed: <span id="note-speed-value">200</span> px/s</label>
+                        <input type="range" id="note-speed-control" min="100" max="600" step="10" value="200">
+                    </div>
 
-                <div class="control-group">
-                    <label for="duration-control">Tile Duration: <span id="duration-value">0.8</span>x</label>
-                    <input type="range" id="duration-control" min="0.5" max="2.0" step="0.1" value="0.8">
-                </div>
+                    <div class="control-group">
+                        <label for="tuning-offset">Tuning Offset: <span id="tuning-offset-value">0</span> cents</label>
+                        <input type="range" id="tuning-offset" min="-100" max="100" step="1" value="0">
+                    </div>
 
-                <div class="control-group">
-                    <label for="note-speed-control">Note Speed: <span id="note-speed-value">200</span> px/s</label>
-                    <input type="range" id="note-speed-control" min="100" max="600" step="10" value="200">
-                </div>
+                    <div class="control-group">
+                        <label for="bpm-input">BPM</label>
+                        <input type="number" id="bpm-input" min="30" max="300" value="120" class="small-input">
+                        <label for="metronome-toggle">Metronome</label>
+                        <input type="checkbox" id="metronome-toggle" checked>
+                    </div>
 
-                <div class="control-group">
-                    <label for="tuning-offset">Tuning Offset: <span id="tuning-offset-value">0</span> cents</label>
-                    <input type="range" id="tuning-offset" min="-100" max="100" step="1" value="0">
-                </div>
+                    <div class="control-group">
+                        <label for="instrument-select">Instrument</label>
+                        <select id="instrument-select">
+                            <option value="0">C Instrument (Concert Pitch)</option>
+                            <option value="-2">B♭ Instrument (Clarinet, Trumpet)</option>
+                            <option value="-3">A Instrument (A Clarinet)</option>
+                            <option value="-7">F Instrument (French Horn)</option>
+                            <option value="-9">E♭ Instrument (Alto Sax, E♭ Clarinet)</option>
+                        </select>
+                    </div>
 
-                <div class="control-group">
-                    <label for="bpm-input">BPM</label>
-                    <input type="number" id="bpm-input" min="30" max="300" value="120" class="small-input">
-                    <label for="metronome-toggle">Metronome</label>
-                    <input type="checkbox" id="metronome-toggle" checked>
-                </div>
-
-                <div class="control-group">
-                    <label for="instrument-select">Instrument</label>
-                    <select id="instrument-select">
-                        <option value="0">C Instrument (Concert Pitch)</option>
-                        <option value="-2">B♭ Instrument (Clarinet, Trumpet)</option>
-                        <option value="-3">A Instrument (A Clarinet)</option>
-                        <option value="-7">F Instrument (French Horn)</option>
-                        <option value="-9">E♭ Instrument (Alto Sax, Alto Clarinet)</option>
-                    </select>
-                </div>
-
-                <div class="control-group">
-                    <label for="count-in-beats">Count-in Beats</label>
-                    <input type="number" id="count-in-beats" min="1" max="8" step="1" value="2" class="small-input">
-                </div>
-
-                <div class="control-group">
-                    <label for="player-name">Player Name</label>
-                    <input type="text" id="player-name" maxlength="20" placeholder="Enter your name" value="Player">
-                </div>
+                    <div class="control-group">
+                        <label for="count-in-beats">Count-in Beats</label>
+                        <input type="number" id="count-in-beats" min="1" max="8" step="1" value="2" class="small-input">
+                    </div>
             </div>
 
             <div class="controls-row button-row">
@@ -130,7 +119,7 @@
         </div>
 
         <div class="status-bar" id="status-bar">
-            <span id="status-text">Please upload a MIDI file to start the game</span>
+            <span id="status-text">Please select a MIDI from the Library to start the game</span>
         </div>
 
         <div class="help-text">
@@ -140,6 +129,10 @@
         <div class="leaderboard-panel">
             <h3>Leaderboard 🏆</h3>
             <div class="leaderboard-content">
+                <div class="player-name-section">
+                    <label for="player-name">Player Name</label>
+                    <input type="text" id="player-name" maxlength="20" placeholder="Enter your name" value="Player">
+                </div>
                 <ol id="leaderboard-list">
                     <li>Loading scores...</li>
                 </ol>
@@ -148,7 +141,7 @@
         </div>
 
         <footer class="copyright-footer">
-            <p>&copy; Chan Chak Hang Max 2026 | version 2.1.1</p>
+            <p>&copy; Chan Chak Hang Max 2026 | version 2.1.2</p>
         </footer>
 
         <!-- MIDI Drawer -->
@@ -158,6 +151,17 @@
                 <button id="drawer-toggle" class="drawer-toggle-btn">◀</button>
             </div>
             <div class="drawer-content">
+                <div class="upload-section">
+                    <h3>Upload Your MIDI</h3>
+                    <div class="control-group upload-group">
+                        <label for="midi-upload" class="upload-label">
+                            <span class="upload-icon">📁</span>
+                            <span>Choose File</span>
+                        </label>
+                        <input type="file" id="midi-upload" accept=".mid,.midi" style="display: none;">
+                    </div>
+                </div>
+
                 <div class="provided-midis">
                     <h3>Built-in MIDIs</h3>
                     <div class="midi-list">
@@ -166,6 +170,9 @@
                         <button class="midi-item" data-path="midi/ThistleFairy.mid">🧚 Thistle Fairy</button>
                     </div>
                 </div>
+
+                <div class="section-divider"></div>
+
                 <div class="custom-midis">
                     <h3>Your MIDIs</h3>
                     <div class="midi-list" id="custom-midi-list">
