@@ -600,6 +600,13 @@ body.light-mode select:focus {
     align-items: stretch;
 }
 
+.game-main-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
 .game-area {
     flex: 1;
     background: rgba(0, 0, 0, 0.5);
@@ -642,7 +649,6 @@ body.light-mode select:focus {
     background: var(--panel-bg);
     border-radius: 12px;
     padding: 15px;
-    margin-top: 15px;
     border: 1px solid var(--border-color);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
@@ -697,32 +703,46 @@ body.light-mode select:focus {
     height: 6px;
     -webkit-appearance: none;
     appearance: none;
-    background: var(--border-color);
+    background: rgba(255, 255, 255, 0.2);
     border-radius: 3px;
     outline: none;
     margin: 10px 0;
+    cursor: pointer;
+}
+
+body.light-mode .position-slider {
+    background: rgba(0, 0, 0, 0.2);
 }
 
 .position-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: var(--accent-color);
     cursor: pointer;
-    border: 3px solid var(--bg-color);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    transition: transform 0.1s;
+}
+
+.position-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
 }
 
 .position-slider::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: var(--accent-color);
     cursor: pointer;
-    border: 3px solid var(--bg-color);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    border: none;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    transition: transform 0.1s;
+}
+
+.position-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
 }
 
 .position-labels {
@@ -749,14 +769,6 @@ body.light-mode select:focus {
 
 .play-pause-btn.playing {
     background: #ff5252;
-}
-
-.play-pause-btn.playing::before {
-    content: "⏸";
-}
-
-.play-pause-btn:not(.playing)::before {
-    content: "▶";
 }
 
 /* Judgment Line - The "Laser" */

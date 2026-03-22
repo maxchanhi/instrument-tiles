@@ -88,6 +88,10 @@ class InstrumentTilesGame {
         // Fingering data (reserved interface)
         this.fingeringData = {};
         
+        // Navigation state
+        this.currentTime = 0;
+        this.songLength = 0;
+
         // Initialize
         this.init();
     }
@@ -469,6 +473,11 @@ class InstrumentTilesGame {
         const midiNotes = this.notes.map(n => n.midi);
         this.minMidi = midiNotes.length > 0 ? Math.min(...midiNotes) : 60;
 
+        // Calculate song length
+        this.songLength = this.notes.length > 0 ? Math.max(...this.notes.map(n => n.endTime)) : 0;
+        this.currentTime = 0;
+        if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
+
         // Sort by start time
         this.notes.sort((a, b) => a.startTime - b.startTime);
 
@@ -678,6 +687,7 @@ class InstrumentTilesGame {
             document.getElementById('play-btn').disabled = true;
             document.getElementById('pause-btn').disabled = false;
             this.updateStatus('Game in progress...');
+            if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
             this.gameLoop();
         } else {
             // New game - set startTime so first note starts from top
@@ -748,6 +758,7 @@ class InstrumentTilesGame {
                 document.getElementById('play-btn').disabled = true;
                 document.getElementById('pause-btn').disabled = false;
                 this.updateStatus('Game in progress...');
+                if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
                 this.gameLoop();
             }, countInDuration * 1000);
         }
@@ -764,6 +775,73 @@ class InstrumentTilesGame {
         document.getElementById('pause-btn').disabled = true;
         
         this.updateStatus('Game paused');
+        if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
+    }
+
+    togglePlay() {
+        if (this.isPlaying && !this.isPaused) {
+            this.pause();
+        } else {
+            this.play();
+        }
+    }
+
+    seekTo(targetTime) {
+        if (!this.midiData || this.songLength === 0) return;
+        
+        // Constrain to valid range
+        targetTime = Math.max(0, Math.min(this.songLength, targetTime));
+        
+        this.currentTime = targetTime;
+        
+        if (this.isPlaying && !this.isPaused) {
+            // Adjust startTime so that current audio context time maps to new targetTime
+            // targetTime = (audioContext.currentTime - startTime) * speed
+            // targetTime / speed = audioContext.currentTime - startTime
+            // startTime = audioContext.currentTime - (targetTime / speed)
+            this.startTime = this.audioContext.currentTime - (targetTime / this.speed);
+            
+            // Re-sync metronome
+            this.initializeMetronomeClock(targetTime);
+            
+            // Reset hits for notes after this time, to allow playing them
+            this.resetNotesAfter(targetTime);
+        } else if (this.isPaused || (!this.isPlaying && this.pauseTime > 0)) {
+            // Update pauseTime so when we resume, it starts from here
+            // When paused, pauseTime is effectively the elapsed audio time
+            // targetTime = pauseTime * speed
+            // pauseTime = targetTime / speed
+            this.pauseTime = targetTime / this.speed;
+            
+            // Reset hits
+            this.resetNotesAfter(targetTime);
+        } else {
+            // Not started yet
+            this.pauseTime = targetTime / this.speed;
+            this.isPaused = true; // Force it to be in paused state so it can resume from here
+            this.isPlaying = true;
+            document.getElementById('play-btn').disabled = false;
+            
+            // Reset hits
+            this.resetNotesAfter(targetTime);
+        }
+        
+        this.render(targetTime);
+        if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
+    }
+
+    resetNotesAfter(time) {
+        // Reset hit/miss state for notes that haven't been reached yet
+        // A little lookahead buffer
+        this.notes.forEach(note => {
+            if (note.startTime >= time - 0.5) {
+                note.hit = false;
+                note.missed = false;
+                note.accumulatedHoldTime = 0;
+                note.isBeingHeld = false;
+                note.lastHoldUpdate = null;
+            }
+        });
     }
 
     reset() {
@@ -791,7 +869,11 @@ class InstrumentTilesGame {
         document.getElementById('pause-btn').disabled = true;
 
         this.updateStatus(this.midiData ? 'Reset, click Start Game' : 'Please upload a MIDI file to start');
+        
+        this.currentTime = 0;
+        
         this.render();
+        if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
     }
 
     stopPitchDetection() {
@@ -1190,6 +1272,9 @@ class InstrumentTilesGame {
 
         const currentTime = this.audioContext.currentTime - this.startTime;
         const adjustedTime = currentTime * this.speed;
+        
+        this.currentTime = adjustedTime;
+        if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
 
         // Update next note hint
         this.updateNextNoteDisplay(adjustedTime);
@@ -1447,6 +1532,7 @@ class InstrumentTilesGame {
     endGame() {
         this.isPlaying = false;
         this.isPaused = false;
+        if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
         if (this.pitchDetectionEnabled && !this.pitchDetectionTimer) {
             this.startPitchDetection();
         }
@@ -1608,23 +1694,14 @@ class MusicNavigation {
         this.positionSlider.addEventListener('input', (e) => {
             const percent = parseInt(e.target.value) / 100;
             const targetTime = percent * this.game.songLength;
-            this.game.currentTime = targetTime;
-            
-            // If MIDI player exists, seek to position
-            if (this.game.midiPlayer) {
-                this.game.midiPlayer.currentTime = targetTime;
-            }
-            
-            this.update();
+            this.game.seekTo(targetTime);
         });
         
         // Navigation buttons
         const buttonActions = {
-            'nav-rewind': () => this.seekRelative(-10),
             'nav-back': () => this.seekRelative(-5),
             'nav-play-pause': () => this.game.togglePlay(),
-            'nav-forward': () => this.seekRelative(5),
-            'nav-fast-forward': () => this.seekRelative(10)
+            'nav-forward': () => this.seekRelative(5)
         };
         
         Object.keys(buttonActions).forEach(id => {
@@ -1636,6 +1713,11 @@ class MusicNavigation {
         
         // Spacebar for play/pause
         document.addEventListener('keydown', (e) => {
+            // Ignore if typing in an input
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                return;
+            }
+            
             if (e.code === 'Space') {
                 e.preventDefault();
                 this.game.togglePlay();
@@ -1654,12 +1736,10 @@ class MusicNavigation {
     }
     
     seekRelative(seconds) {
-        if (!this.game.midiPlayer) return;
+        if (!this.game.midiData) return;
         
         const newTime = Math.max(0, Math.min(this.game.songLength, this.game.currentTime + seconds));
-        this.game.currentTime = newTime;
-        this.game.midiPlayer.currentTime = newTime;
-        this.update();
+        this.game.seekTo(newTime);
     }
     
     update() {
@@ -1679,7 +1759,7 @@ class MusicNavigation {
     
     updatePlayButton() {
         if (this.playPauseBtn) {
-            if (this.game.isPlaying) {
+            if (this.game.isPlaying && !this.game.isPaused) {
                 this.playPauseBtn.classList.add('playing');
                 this.playPauseBtn.title = 'Pause';
                 this.playPauseBtn.innerHTML = '⏸';
