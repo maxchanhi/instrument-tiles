@@ -1173,15 +1173,15 @@ class InstrumentTilesGame {
         // Sustain-based judgment
         const sustainPercentage = note.accumulatedHoldTime / note.duration;
 
-        if (sustainPercentage >= 0.6) {
+        if (sustainPercentage >= 0.8) {
             judgment = 'perfect';
             scoreAdd = 150;
             this.combo++;
-        } else if (sustainPercentage >= 0.3) {
+        } else if (sustainPercentage >= 0.5) {
             judgment = 'good';
             scoreAdd = 75;
             this.combo++;
-        } else if (sustainPercentage >= 0.1) {
+        } else if (sustainPercentage >= 0.2) {
             judgment = 'ok';
             scoreAdd = 25;
             this.combo++;
