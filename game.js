@@ -271,7 +271,7 @@ class InstrumentTilesGame {
         });
 
         // Set default active in drawer
-        const defaultItem = document.querySelector('.midi-item[data-path="midi/BananaBoat.mid"]');
+        const defaultItem = document.querySelector('.midi-item[data-path="midi/BananaBoat_bpm60.mid"]');
         if (defaultItem) defaultItem.classList.add('active');
         
         // Preview button
@@ -379,7 +379,7 @@ class InstrumentTilesGame {
         this.updateStatus('Loading default MIDI file...');
 
         try {
-            const response = await fetch('midi/BananaBoat.mid');
+            const response = await fetch('midi/BananaBoat_bpm60.mid');
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
