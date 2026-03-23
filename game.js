@@ -28,7 +28,7 @@ class InstrumentTilesGame {
         this.canvasHeight = 0;
         
         // Game parameters
-        this.noteSpeed = 200; // Note falling speed (pixels/sec) - drastically reduced for much slower dropping
+        this.noteSpeed = 150; // Note falling speed (pixels/sec) - drastically reduced for much slower dropping
         this.judgmentLineY = 0;
         this.hitWindow = {
             perfect: 80,    // Perfect judgment window (ms)

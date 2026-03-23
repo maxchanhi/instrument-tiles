@@ -15,54 +15,14 @@
             </header>
 
             <div class="controls">
-                <div class="controls-row">
-                    <div class="control-group">
-                        <label for="duration-control">Tile Duration: <span id="duration-value">0.8</span>x</label>
-                        <input type="range" id="duration-control" min="0.5" max="2.0" step="0.1" value="0.8">
-                    </div>
-
-                    <div class="control-group">
-                        <label for="note-speed-control">Note Speed: <span id="note-speed-value">200</span> px/s</label>
-                        <input type="range" id="note-speed-control" min="100" max="600" step="10" value="200">
-                    </div>
-
-                    <div class="control-group">
-                        <label for="tuning-offset">Tuning Offset: <span id="tuning-offset-value">0</span> cents</label>
-                        <input type="range" id="tuning-offset" min="-100" max="100" step="1" value="0">
-                    </div>
-
-                    <div class="control-group">
-                        <label for="bpm-input">BPM</label>
-                        <input type="number" id="bpm-input" min="30" max="300" value="120" class="small-input">
-                        <label for="metronome-toggle">Metronome</label>
-                        <input type="checkbox" id="metronome-toggle" checked>
-                    </div>
-
-                    <div class="control-group">
-                        <label for="instrument-select">Instrument</label>
-                        <select id="instrument-select">
-                            <option value="0">C Instrument (Concert Pitch)</option>
-                            <option value="-2">B♭ Instrument (Clarinet, Trumpet)</option>
-                            <option value="-3">A Instrument (A Clarinet)</option>
-                            <option value="-7">F Instrument (French Horn)</option>
-                            <option value="-9">E♭ Instrument (Alto Sax, E♭ Clarinet)</option>
-                        </select>
-                    </div>
-
-                    <div class="control-group">
-                        <label for="count-in-beats">Count-in Beats</label>
-                        <input type="number" id="count-in-beats" min="1" max="8" step="1" value="2" class="small-input">
-                    </div>
+                <div class="controls-row button-row">
+                    <button id="mic-btn">🎤 Connect Mic</button>
+                    <button id="preview-btn" disabled>🎵 Preview Pitch</button>
+                    <button id="play-btn" disabled>▶ Start Game</button>
+                    <button id="pause-btn" disabled>⏸ Pause</button>
+                    <button id="reset-btn" disabled>🔄 Reset</button>
+                </div>
             </div>
-
-            <div class="controls-row button-row">
-                <button id="mic-btn">🎤 Connect Mic</button>
-                <button id="preview-btn" disabled>🎵 Preview Pitch</button>
-                <button id="play-btn" disabled>▶ Start Game</button>
-                <button id="pause-btn" disabled>⏸ Pause</button>
-                <button id="reset-btn" disabled>🔄 Reset</button>
-            </div>
-        </div>
 
         <div class="game-container">
             <div class="game-main-column">
@@ -118,6 +78,51 @@
             <p class="placeholder">Fingering Display (Coming Soon)</p>
         </div>
 
+        <div class="advanced-settings-panel">
+            <h3>Advanced Settings ⚙️</h3>
+            <div class="controls-row">
+                <div class="control-group">
+                    <label for="duration-control">Tile Duration: <span id="duration-value">0.8</span>x</label>
+                    <input type="range" id="duration-control" min="0.5" max="2.0" step="0.1" value="0.8">
+                </div>
+
+                <div class="control-group">
+                    <label for="note-speed-control">Note Speed: <span id="note-speed-value">150</span> px/s</label>
+                    <input type="range" id="note-speed-control" min="100" max="600" step="10" value="150">
+                </div>
+
+                <div class="control-group">
+                    <label for="tuning-offset">Tuning Offset: <span id="tuning-offset-value">0</span> cents</label>
+                    <input type="range" id="tuning-offset" min="-100" max="100" step="1" value="0">
+                </div>
+            </div>
+
+            <div class="controls-row" style="margin-top: 20px;">
+                <div class="control-group">
+                    <label for="bpm-input">BPM</label>
+                    <input type="number" id="bpm-input" min="30" max="300" value="120" class="small-input">
+                    <label for="metronome-toggle">Metronome</label>
+                    <input type="checkbox" id="metronome-toggle" checked>
+                </div>
+
+                <div class="control-group">
+                    <label for="instrument-select">Instrument</label>
+                    <select id="instrument-select">
+                        <option value="0">C Instrument (Concert Pitch)</option>
+                        <option value="-2">B♭ Instrument (Clarinet, Trumpet)</option>
+                        <option value="-3">A Instrument (A Clarinet)</option>
+                        <option value="-7">F Instrument (French Horn)</option>
+                        <option value="-9">E♭ Instrument (Alto Sax, E♭ Clarinet)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="count-in-beats">Count-in Beats</label>
+                    <input type="number" id="count-in-beats" min="1" max="8" step="1" value="2" class="small-input">
+                </div>
+            </div>
+        </div>
+
         <div class="status-bar" id="status-bar">
             <span id="status-text">Please select a MIDI from the Library to start the game</span>
         </div>
@@ -137,11 +142,11 @@
         </div>
 
         <div class="help-text">
-            <p>💡 Tips: 1. Click "Connect Mic" to allow microphone access. 2. Click "Preview Pitch" to listen to the notes. 3. <strong>Sustain your pitch</strong> - hold the note for at least 80% of the tile duration to get PERFECT HOLD! 🎯 4. Supports any octave (e.g., D4 can be played as D3 or D5). 5. For transposing instruments (e.g., B♭ Clarinet), select your instrument - the game displays written pitch but recognizes sounding pitch! 6. Use Tile Duration slider to adjust tile length.</p>
+            <p>💡 Tips: 1. Click "Connect Mic" to allow microphone access. 2. Click "Preview Pitch" to listen to the notes. 3. <strong>Sustain your pitch</strong> - hold the note for the entire tile duration to get PERFECT HOLD! 🎯 4. Supports any octave (e.g., D4 can be played as D3 or D5). 5. For transposing instruments (e.g., B♭ Clarinet), select your instrument - the game displays written pitch but recognizes sounding pitch! 6. Use Tile Duration slider to adjust tile length.</p>
         </div>
 
         <footer class="copyright-footer">
-            <p>&copy; Chan Chak Hang Max 2026 | version 2.1.3</p>
+            <p>&copy; Chan Chak Hang Max 2026 | version 2.1.4</p>
         </footer>
 
         <!-- MIDI Drawer -->
