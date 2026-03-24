@@ -17,6 +17,11 @@
             <div class="controls">
                 <div class="controls-row button-row">
                     <button id="mic-btn">🎤 Connect Mic</button>
+                    <div class="mic-sensitivity-control">
+                        <label for="mic-sensitivity">Mic Sensitivity: <span id="mic-sensitivity-value">50</span>%</label>
+                        <input type="range" id="mic-sensitivity" min="1" max="100" step="1" value="50">
+                        <span class="mic-hint">Lower = filter noise, Higher = pick up quiet sounds</span>
+                    </div>
                     <button id="preview-btn" disabled>🎵 Preview Pitch</button>
                     <button id="play-btn" disabled>▶ Start Game</button>
                     <button id="pause-btn" disabled>⏸ Pause</button>
@@ -123,6 +128,36 @@
             </div>
         </div>
 
+        <div class="practice-mode-panel">
+            <h3>Practice Mode 🎯</h3>
+            <p class="practice-subtitle">Isolate difficult notes and practice them with looping exercises</p>
+
+            <div class="practice-struggling-section">
+                <h4>Struggling Notes</h4>
+                <div id="practice-struggling-list" class="practice-struggling-list">
+                    <p class="practice-empty">Play a song first to identify difficult notes.</p>
+                </div>
+                <p id="practice-info" class="practice-info">No data yet. Complete a song to track difficulty.</p>
+            </div>
+
+            <div class="practice-controls-row">
+                <div class="practice-control-group">
+                    <label for="practice-loops">Loops</label>
+                    <input type="number" id="practice-loops" min="1" max="10" value="3" class="small-input">
+                </div>
+                <div class="practice-control-group">
+                    <label for="practice-speed">Speed: <span id="practice-speed-value">75</span>%</label>
+                    <input type="range" id="practice-speed" min="25" max="100" step="5" value="75">
+                </div>
+            </div>
+
+            <div class="practice-actions">
+                <button id="practice-generate-btn" disabled>Generate Exercise</button>
+                <button id="practice-exit-btn" style="display: none;">Exit Practice</button>
+                <span id="practice-loop-info" class="practice-loop-info"></span>
+            </div>
+        </div>
+
         <div class="status-bar" id="status-bar">
             <span id="status-text">Please select a MIDI from the Library to start the game</span>
         </div>
@@ -151,7 +186,7 @@
         </div>
 
         <footer class="copyright-footer">
-            <p>&copy; Chan Chak Hang Max 2026 | version 2.1.6</p>
+            <p>&copy; Chan Chak Hang Max 2026 | version 2.1.7</p>
         </footer>
 
         <!-- MIDI Drawer -->

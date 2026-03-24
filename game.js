@@ -87,7 +87,18 @@ class InstrumentTilesGame {
         
         // Fingering data (reserved interface)
         this.fingeringData = {};
-        
+
+        // Note difficulty tracking: pitchName -> { total, hits, misses, totalSustain, perfectCount }
+        this.noteStats = {};
+
+        // Practice mode state
+        this.practiceMode = false;
+        this.practiceNotes = [];
+        this.practiceLoopCount = 0;
+        this.practiceMaxLoops = 3;
+        this.practiceOriginalNotes = null;
+        this.practiceBpmRatio = 0.75; // Slow down to 75% for practice
+
         // Navigation state
         this.currentTime = 0;
         this.songLength = 0;
@@ -249,6 +260,18 @@ class InstrumentTilesGame {
         // Microphone button
         document.getElementById('mic-btn').addEventListener('click', () => this.toggleMicrophone());
 
+        // Mic sensitivity control
+        const micSensitivityControl = document.getElementById('mic-sensitivity');
+        if (micSensitivityControl) {
+            micSensitivityControl.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                document.getElementById('mic-sensitivity-value').textContent = value;
+                // Map 1-100 slider to RMS threshold: 1=noisiest (0.05), 100=most sensitive (0.001)
+                this.pitchDetector.rmsThreshold = 0.05 - (value / 100) * 0.049;
+                console.log(`Mic sensitivity: ${value}%, RMS threshold: ${this.pitchDetector.rmsThreshold.toFixed(4)}`);
+            });
+        }
+
         // MIDI Drawer Toggling
         const drawer = document.getElementById('midi-drawer');
         const drawerToggle = document.getElementById('drawer-toggle');
@@ -286,6 +309,41 @@ class InstrumentTilesGame {
         const clearLeaderboardBtn = document.getElementById('clear-leaderboard');
         if (clearLeaderboardBtn) {
             clearLeaderboardBtn.addEventListener('click', () => this.clearLeaderboard());
+        }
+
+        // Practice mode buttons
+        const practiceGenerateBtn = document.getElementById('practice-generate-btn');
+        if (practiceGenerateBtn) {
+            practiceGenerateBtn.addEventListener('click', () => this.generatePracticeExercise());
+        }
+
+        const practiceExitBtn = document.getElementById('practice-exit-btn');
+        if (practiceExitBtn) {
+            practiceExitBtn.addEventListener('click', () => {
+                this.exitPracticeMode();
+                this.updateStatus('Exited practice mode. Back to normal.');
+            });
+        }
+
+        const practiceLoopsInput = document.getElementById('practice-loops');
+        if (practiceLoopsInput) {
+            practiceLoopsInput.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                if (val >= 1 && val <= 10) {
+                    this.practiceMaxLoops = val;
+                }
+            });
+        }
+
+        const practiceSpeedInput = document.getElementById('practice-speed');
+        if (practiceSpeedInput) {
+            practiceSpeedInput.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                if (val >= 25 && val <= 100) {
+                    this.practiceBpmRatio = val / 100;
+                    document.getElementById('practice-speed-value').textContent = val;
+                }
+            });
         }
     }
 
@@ -327,7 +385,10 @@ class InstrumentTilesGame {
     // Common logic to process MIDI buffer
     processMidiBuffer(arrayBuffer, fileName) {
         console.log(`Processing MIDI: ${fileName}, size: ${arrayBuffer.byteLength} bytes`);
-        
+
+        // Clear difficulty tracking for new file
+        this.noteStats = {};
+
         // Use local MIDI parser
         this.midiData = new SimpleMidiParser(arrayBuffer);
         console.log('MIDI parsed successfully:', this.midiData);
@@ -427,7 +488,7 @@ class InstrumentTilesGame {
             track.notes.forEach(note => {
                 uniqueMidiNotes.add(note.midi);
                 
-                const noteKey = `${note.midi}-${note.startTime}`;
+                    const noteKey = `${note.midi}-${note.startTime}`;
                 if (!noteMap.has(noteKey)) {
                     // Apply duration ratio to tile length
                     const scaledDuration = note.duration * this.tileDurationRatio;
@@ -853,7 +914,12 @@ class InstrumentTilesGame {
             clearTimeout(this.countInTimer);
             this.countInTimer = null;
         }
-        
+
+        // Exit practice mode if active
+        if (this.practiceMode) {
+            this.exitPracticeMode();
+        }
+
         // Reset cooldown
         this.currentCooldown = 200;
 
@@ -1067,9 +1133,6 @@ class InstrumentTilesGame {
         let bestNote = null;
         let bestTimeDiff = Infinity;
 
-        // Threshold for starting a hold (looser window)
-        const holdStartThreshold = this.hitWindow.miss;
-
         this.notes.forEach(note => {
             if (note.hit || note.missed) return;
             
@@ -1080,13 +1143,18 @@ class InstrumentTilesGame {
             const pitchClassMatch = (transposedMidi % 12) === (note.midi % 12);
             if (!pitchClassMatch) return;
 
+            // Short notes get wider hit window
+            const isShortNote = (note.duration / this.speed) < 0.3;
+            const holdStartThreshold = isShortNote ? this.hitWindow.miss * 2 : this.hitWindow.miss;
+            const afterEndTolerance = isShortNote ? 0.3 : 0.1;
+
             // Note is "active" if current time is within its window
-            // window: [startTime - threshold, endTime]
+            // window: [startTime - threshold, endTime + tolerance]
             const timeUntilStart = note.startTime - adjustedTime;
             const timeUntilEnd = note.endTime - adjustedTime;
             
             // Check if we are in the hit window or already within the tile duration
-            if (timeUntilStart < holdStartThreshold / 1000 && timeUntilEnd > -0.1) {
+            if (timeUntilStart < holdStartThreshold / 1000 && timeUntilEnd > -afterEndTolerance) {
                 const timeDiff = Math.abs(timeUntilStart) * 1000;
                 if (timeDiff < bestTimeDiff) {
                     bestTimeDiff = timeDiff;
@@ -1170,26 +1238,40 @@ class InstrumentTilesGame {
         let judgment = '';
         let scoreAdd = 0;
 
-        // Sustain-based judgment
-        const sustainPercentage = note.accumulatedHoldTime / note.duration;
+        const isShortNote = (note.duration / this.speed) < 0.3;
 
-        if (sustainPercentage >= 0.8) {
-            judgment = 'perfect';
-            scoreAdd = 150;
-            this.combo++;
-        } else if (sustainPercentage >= 0.5) {
-            judgment = 'good';
-            scoreAdd = 75;
-            this.combo++;
-        } else if (sustainPercentage >= 0.2) {
-            judgment = 'ok';
-            scoreAdd = 25;
-            this.combo++;
+        if (isShortNote) {
+            // Fast notes: judge on pitch only, skip sustain requirement
+            if (note.accumulatedHoldTime > 0) {
+                judgment = 'perfect';
+                scoreAdd = 150;
+                this.combo++;
+            } else {
+                judgment = 'miss';
+                scoreAdd = 0;
+                this.combo = 0;
+            }
         } else {
-            // Truly missed (0 sustain)
-            judgment = 'miss';
-            scoreAdd = 0;
-            this.combo = 0;
+            // Sustain-based judgment for normal notes
+            const sustainPercentage = note.accumulatedHoldTime / note.duration;
+
+            if (sustainPercentage >= 0.8) {
+                judgment = 'perfect';
+                scoreAdd = 150;
+                this.combo++;
+            } else if (sustainPercentage >= 0.5) {
+                judgment = 'good';
+                scoreAdd = 75;
+                this.combo++;
+            } else if (sustainPercentage >= 0.2) {
+                judgment = 'ok';
+                scoreAdd = 25;
+                this.combo++;
+            } else {
+                judgment = 'miss';
+                scoreAdd = 0;
+                this.combo = 0;
+            }
         }
 
         if (judgment) {
@@ -1199,12 +1281,30 @@ class InstrumentTilesGame {
             } else {
                 this.missedNotes++;
             }
-            
+
+            const sustainPct = note.duration > 0 ? note.accumulatedHoldTime / note.duration : 0;
+
             this.score += scoreAdd + (this.combo > 10 ? Math.floor(this.combo / 2) : 0);
             this.updateStats();
-            this.showJudgment(judgment, sustainPercentage >= 0.80);
-            
-            console.log(`Judged: ${note.name}, Sustain: ${(sustainPercentage * 100).toFixed(1)}%, Judgment: ${judgment}`);
+            this.showJudgment(judgment, isShortNote ? (judgment === 'perfect') : sustainPct >= 0.80);
+
+            // Track per-note difficulty stats
+            const pitchKey = note.name;
+            if (!this.noteStats[pitchKey]) {
+                this.noteStats[pitchKey] = { total: 0, hits: 0, misses: 0, totalSustain: 0, perfectCount: 0 };
+            }
+            this.noteStats[pitchKey].total++;
+            this.noteStats[pitchKey].totalSustain += sustainPct;
+            if (judgment === 'perfect') {
+                this.noteStats[pitchKey].hits++;
+                this.noteStats[pitchKey].perfectCount++;
+            } else if (judgment === 'miss') {
+                this.noteStats[pitchKey].misses++;
+            } else {
+                this.noteStats[pitchKey].hits++;
+            }
+
+            console.log(`Judged: ${note.name}${isShortNote ? ' (fast)' : ''}, Sustain: ${(sustainPct * 100).toFixed(1)}%, Judgment: ${judgment}`);
         }
     }
 
@@ -1239,6 +1339,285 @@ class InstrumentTilesGame {
             case 'miss': return '#ff6b6b';
             default: return '#fff';
         }
+    }
+
+    /**
+     * Analyze note stats and return struggling notes sorted by difficulty
+     * @returns {Array} Array of { name, midi, accuracy, difficulty, attempts }
+     */
+    getStrugglingNotes() {
+        const struggling = [];
+        const uniqueMidiMap = {};
+
+        // Build a map of noteName -> midi from current notes
+        this.notes.forEach(note => {
+            if (!uniqueMidiMap[note.name]) {
+                uniqueMidiMap[note.name] = note.midi;
+            }
+        });
+
+        for (const [name, stats] of Object.entries(this.noteStats)) {
+            if (stats.total < 1) continue;
+            const avgSustain = stats.totalSustain / stats.total;
+            const accuracy = (stats.hits / stats.total) * 100;
+
+            // Difficulty: higher = more difficult. Weighted by low accuracy, high miss rate, low sustain
+            const missRate = stats.misses / stats.total;
+            const difficulty = (100 - accuracy) * 0.4 + missRate * 100 * 0.3 + (1 - avgSustain) * 100 * 0.3;
+
+            struggling.push({
+                name,
+                midi: uniqueMidiMap[name] || 60,
+                accuracy: accuracy.toFixed(1),
+                difficulty: difficulty.toFixed(1),
+                attempts: stats.total,
+                avgSustain: (avgSustain * 100).toFixed(1)
+            });
+        }
+
+        // Sort by difficulty descending
+        struggling.sort((a, b) => parseFloat(b.difficulty) - parseFloat(a.difficulty));
+        return struggling;
+    }
+
+    /**
+     * Update the practice mode UI with current struggling notes
+     */
+    updatePracticePanel() {
+        const listEl = document.getElementById('practice-struggling-list');
+        const generateBtn = document.getElementById('practice-generate-btn');
+        const infoEl = document.getElementById('practice-info');
+        if (!listEl) return;
+
+        const struggling = this.getStrugglingNotes();
+
+        if (struggling.length === 0) {
+            listEl.innerHTML = '<p class="practice-empty">Play a song first to identify difficult notes.</p>';
+            if (generateBtn) generateBtn.disabled = true;
+            if (infoEl) infoEl.textContent = 'No data yet. Complete a song to track difficulty.';
+            return;
+        }
+
+        if (generateBtn) generateBtn.disabled = false;
+
+        // Show top 5 most difficult
+        const topStruggling = struggling.slice(0, 5);
+        listEl.innerHTML = topStruggling.map((s, i) => {
+            const diffLevel = parseFloat(s.difficulty) >= 60 ? 'hard' : parseFloat(s.difficulty) >= 30 ? 'medium' : 'easy';
+            return `<div class="practice-note-item ${diffLevel}">
+                <span class="practice-note-rank">${i + 1}</span>
+                <span class="practice-note-name">${s.name}</span>
+                <span class="practice-note-stat">${s.accuracy}% accuracy</span>
+                <span class="practice-note-stat">${s.attempts} attempts</span>
+            </div>`;
+        }).join('');
+
+        if (infoEl) {
+            infoEl.textContent = `Found ${struggling.length} note${struggling.length > 1 ? 's' : ''} with difficulty data. Top ${topStruggling.length} shown.`;
+        }
+    }
+
+    /**
+     * Generate a practice exercise from struggling notes
+     */
+    generatePracticeExercise() {
+        const struggling = this.getStrugglingNotes();
+        if (struggling.length === 0) {
+            this.updateStatus('No difficulty data available. Play a song first!');
+            return;
+        }
+
+        // Take top struggling notes (up to 4)
+        const targetNotes = struggling.slice(0, 4);
+        const exerciseNotes = [];
+        const bpm = this.midiData ? this.midiData.bpm : 120;
+        const beatDuration = 60 / (bpm * this.practiceBpmRatio); // Slower for practice
+
+        // Generate a pattern: each note played sequentially, then in pairs
+        let currentTime = 0;
+        const noteDuration = beatDuration * 1.5; // Generous duration for practice
+
+        // Phase 1: Each note alone, 3 repetitions
+        targetNotes.forEach(tn => {
+            for (let rep = 0; rep < 3; rep++) {
+                exerciseNotes.push({
+                    midi: tn.midi,
+                    name: tn.name,
+                    startTime: currentTime,
+                    endTime: currentTime + noteDuration,
+                    duration: noteDuration,
+                    velocity: 100,
+                    track: 0,
+                    hit: false,
+                    missed: false,
+                    accumulatedHoldTime: 0,
+                    isBeingHeld: false,
+                    x: 0,
+                    y: 0,
+                    width: 0,
+                    height: 0,
+                    originalDuration: noteDuration,
+                    hitWindowOffset: 0,
+                    sustainRequired: true
+                });
+                currentTime += noteDuration + beatDuration;
+            }
+            currentTime += beatDuration; // Extra gap between notes
+        });
+
+        // Phase 2: Alternating pairs (if at least 2 notes)
+        if (targetNotes.length >= 2) {
+            for (let i = 0; i < targetNotes.length - 1; i++) {
+                for (let rep = 0; rep < 2; rep++) {
+                    exerciseNotes.push({
+                        midi: targetNotes[i].midi,
+                        name: targetNotes[i].name,
+                        startTime: currentTime,
+                        endTime: currentTime + noteDuration,
+                        duration: noteDuration,
+                        velocity: 100,
+                        track: 0,
+                        hit: false,
+                        missed: false,
+                        accumulatedHoldTime: 0,
+                        isBeingHeld: false,
+                        x: 0,
+                        y: 0,
+                        width: 0,
+                        height: 0,
+                        originalDuration: noteDuration,
+                        hitWindowOffset: 0,
+                        sustainRequired: true
+                    });
+                    currentTime += noteDuration + beatDuration * 0.75;
+                    exerciseNotes.push({
+                        midi: targetNotes[i + 1].midi,
+                        name: targetNotes[i + 1].name,
+                        startTime: currentTime,
+                        endTime: currentTime + noteDuration,
+                        duration: noteDuration,
+                        velocity: 100,
+                        track: 0,
+                        hit: false,
+                        missed: false,
+                        accumulatedHoldTime: 0,
+                        isBeingHeld: false,
+                        x: 0,
+                        y: 0,
+                        width: 0,
+                        height: 0,
+                        originalDuration: noteDuration,
+                        hitWindowOffset: 0,
+                        sustainRequired: true
+                    });
+                    currentTime += noteDuration + beatDuration * 0.75;
+                }
+                currentTime += beatDuration;
+            }
+        }
+
+        // Save original state for restoration
+        this.practiceOriginalNotes = {
+            notes: [...this.notes],
+            totalNotes: this.totalNotes,
+            uniqueNotes: this.uniqueNotes,
+            songLength: this.songLength,
+            speed: this.speed,
+            laneWidth: this.laneWidth,
+            laneCount: this.laneCount
+        };
+
+        // Replace current notes with exercise
+        this.notes = exerciseNotes;
+        this.totalNotes = exerciseNotes.length;
+        this.uniqueNotes = new Set(exerciseNotes.map(n => n.midi)).size;
+        this.songLength = currentTime + beatDuration * 2;
+        this.speed = bpm * this.practiceBpmRatio / 60;
+
+        // Recalculate positions
+        this.calculateNotePositions();
+
+        // Enter practice mode
+        this.practiceMode = true;
+        this.practiceLoopCount = 0;
+
+        // Update UI
+        const loopEl = document.getElementById('practice-loop-info');
+        if (loopEl) loopEl.textContent = `Loop 1 / ${this.practiceMaxLoops}`;
+
+        const exitBtn = document.getElementById('practice-exit-btn');
+        if (exitBtn) exitBtn.style.display = 'inline-block';
+
+        this.updateStatus(`Practice Mode: ${targetNotes.map(n => n.name).join(', ')} (${exerciseNotes.length} notes, slower tempo)`);
+        this.resetStats();
+        this.resetNotes();
+        this.enableControls();
+        this.render();
+        if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
+
+        // Auto-play the exercise
+        this.play();
+    }
+
+    /**
+     * Called when the game ends - handles practice loop or normal end
+     */
+    handleGameEnd() {
+        if (this.practiceMode) {
+            this.practiceLoopCount++;
+
+            const loopEl = document.getElementById('practice-loop-info');
+            if (loopEl) loopEl.textContent = `Loop ${this.practiceLoopCount + 1} / ${this.practiceMaxLoops}`;
+
+            if (this.practiceLoopCount < this.practiceMaxLoops) {
+                // Loop: reset and replay
+                this.resetStats();
+                this.resetNotes();
+                this.updateStatus(`Practice Loop ${this.practiceLoopCount + 1}/${this.practiceMaxLoops} - Keep practicing those notes!`);
+                setTimeout(() => this.play(), 1000);
+                return;
+            } else {
+                // Done practicing
+                this.exitPracticeMode();
+                this.updateStatus('Practice complete! Check your accuracy in the stats panel.');
+                return;
+            }
+        }
+
+        // Normal game end
+        const accuracy = this.totalNotes > 0
+            ? ((this.hitNotes / this.totalNotes) * 100).toFixed(1)
+            : 0;
+        this.updateStatus(`Game Over! Score: ${this.score} | Accuracy: ${accuracy}% | Max Combo: ${this.combo}`);
+        this.showEndScreen();
+    }
+
+    /**
+     * Exit practice mode and restore original song
+     */
+    exitPracticeMode() {
+        this.practiceMode = false;
+
+        if (this.practiceOriginalNotes) {
+            this.notes = this.practiceOriginalNotes.notes;
+            this.totalNotes = this.practiceOriginalNotes.totalNotes;
+            this.uniqueNotes = this.practiceOriginalNotes.uniqueNotes;
+            this.songLength = this.practiceOriginalNotes.songLength;
+            this.speed = this.practiceOriginalNotes.speed;
+            this.calculateNotePositions();
+            this.practiceOriginalNotes = null;
+        }
+
+        const exitBtn = document.getElementById('practice-exit-btn');
+        if (exitBtn) exitBtn.style.display = 'none';
+
+        const loopEl = document.getElementById('practice-loop-info');
+        if (loopEl) loopEl.textContent = '';
+
+        this.resetStats();
+        this.resetNotes();
+        this.render();
+        if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
     }
 
     showFingering(note) {
@@ -1540,15 +1919,11 @@ class InstrumentTilesGame {
         
         document.getElementById('play-btn').disabled = false;
         document.getElementById('pause-btn').disabled = true;
-        
-        const accuracy = this.totalNotes > 0 
-            ? ((this.hitNotes / this.totalNotes) * 100).toFixed(1) 
-            : 0;
-        
-        this.updateStatus(`Game Over! Score: ${this.score} | Accuracy: ${accuracy}% | Max Combo: ${this.combo}`);
-        
-        // Show game over screen
-        this.showEndScreen();
+
+        // Update practice panel with latest stats
+        this.updatePracticePanel();
+
+        this.handleGameEnd();
     }
 
     // Leaderboard methods
@@ -1638,7 +2013,7 @@ class InstrumentTilesGame {
         const accuracy = this.totalNotes > 0 
             ? ((this.hitNotes / this.totalNotes) * 100).toFixed(1) 
             : 0;
-        
+
         // Save score to leaderboard
         this.saveScore();
         

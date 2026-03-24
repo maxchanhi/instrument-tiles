@@ -11,47 +11,56 @@ class PitchDetector {
         this.mediaStream = null;
         this.dataArray = null;
         this.isListening = false;
-        
+
         // Pitch detection parameters
         this.minFrequency = 52.0;  // Min frequency (C2)
         this.maxFrequency = 2093.0; // Max frequency (C7)
         this.smoothing = 0.5; // Lower smoothing, increase response speed
         this.tuningOffsetCents = 0; // Micro-tuning offset in cents (±100 = ±1 semitone)
-        
+
         // Continuous detection buffer, improve accuracy
         this.pitchHistory = [];
         this.historySize = 3;
-        
+
         // Currently detected pitch
         this.currentPitch = null;
         this.currentMidi = null;
         this.currentNoteName = null;
+
+        // RMS threshold for noise filtering (lower = more sensitive)
+        this.rmsThreshold = 0.005;
     }
 
     async init() {
         console.log('PitchDetector.init() called');
-        
+
         try {
             // Check browser support
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 throw new Error('Your browser does not support microphone access');
             }
-            
+
             console.log('Browser supports getUserMedia');
-            
+
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            console.log('AudioContext created successfully');
+            console.log('AudioContext created, state:', this.audioContext.state);
+
+            // Resume if suspended (required after user gesture)
+            if (this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+                console.log('AudioContext resumed');
+            }
 
             // Request microphone permission
             console.log('Requesting microphone permission...');
             this.mediaStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: false,
-                    noiseCancellation: true,
-                    autoGainControl: false
+                    noiseSuppression: false,
+                    autoGainControl: true
                 }
             });
-            console.log('Microphone permission granted');
+            console.log('Microphone permission granted, tracks:', this.mediaStream.getTracks().length);
 
             this.analyser = this.audioContext.createAnalyser();
             this.analyser.fftSize = 2048;
@@ -89,7 +98,7 @@ class PitchDetector {
             if (this.pitchHistory.length > this.historySize) {
                 this.pitchHistory.shift();
             }
-            
+
             this.currentPitch = null;
             this.currentMidi = null;
             this.currentNoteName = null;
@@ -99,14 +108,14 @@ class PitchDetector {
         // Calculate MIDI note number
         const midi = this.frequencyToMidi(acf.frequency);
         const noteName = this.midiToNoteName(midi);
-        
-        // 添加到历史记录
+
+        // Add to history
         this.pitchHistory.push(midi);
         if (this.pitchHistory.length > this.historySize) {
             this.pitchHistory.shift();
         }
-        
-        // 使用历史记录的中值，提高稳定性
+
+        // Use mode from history for stability
         const stableMidi = this.getStablePitch();
 
         this.currentPitch = acf.frequency;
@@ -124,30 +133,31 @@ class PitchDetector {
     stop() {
         if (this.mediaStream) {
             this.mediaStream.getTracks().forEach(track => track.stop());
+            this.mediaStream = null;
         }
         if (this.audioContext) {
             this.audioContext.close();
+            this.audioContext = null;
         }
         this.isListening = false;
         this.analyser = null;
-        this.mediaStream = null;
         this.dataArray = null;
     }
-    
+
     /**
-     * 从历史记录中获取稳定的音高（众数）
+     * Get stable pitch from history (mode)
      */
     getStablePitch() {
         if (this.pitchHistory.length === 0) return this.currentMidi || 60;
-        
+
         const validHistory = this.pitchHistory.filter(p => p !== null);
         if (validHistory.length === 0) return this.currentMidi || 60;
-        
-        // 返回出现次数最多的音高
+
+        // Return most frequent pitch
         const counts = {};
         let maxCount = 0;
         let mostFrequent = validHistory[0];
-        
+
         for (const midi of validHistory) {
             counts[midi] = (counts[midi] || 0) + 1;
             if (counts[midi] > maxCount) {
@@ -155,25 +165,25 @@ class PitchDetector {
                 mostFrequent = midi;
             }
         }
-        
+
         return mostFrequent;
     }
 
     /**
-     * 自相关算法检测基频
+     * Autocorrelation algorithm for fundamental frequency detection
      */
     autoCorrelate(buffer, sampleRate) {
-        // 计算信号的 RMS
+        // Calculate signal RMS
         let rms = 0;
         for (let i = 0; i < buffer.length; i++) {
             rms += buffer[i] * buffer[i];
         }
         rms = Math.sqrt(rms / buffer.length);
 
-        // 如果信号太弱，返回 null
-        if (rms < 0.01) return null;
+        // If signal too weak, return null (configurable threshold)
+        if (rms < this.rmsThreshold) return null;
 
-        // 计算自相关函数
+        // Calculate autocorrelation function
         const r = new Array(buffer.length).fill(0);
         for (let i = 0; i < buffer.length; i++) {
             for (let j = 0; j < buffer.length - i; j++) {
@@ -181,7 +191,7 @@ class PitchDetector {
             }
         }
 
-        // 找到自相关函数的峰值
+        // Find peak of autocorrelation function
         let d = 0;
         while (d < r.length - 1 && r[d] > r[d + 1]) {
             d++;
@@ -189,7 +199,7 @@ class PitchDetector {
 
         let maxval = -1;
         let maxpos = -1;
-        
+
         for (let i = d; i < r.length; i++) {
             if (r[i] > maxval) {
                 maxval = r[i];
@@ -199,21 +209,23 @@ class PitchDetector {
 
         let T0 = maxpos;
 
-        // 抛物线插值提高精度
-        const x1 = r[T0 - 1];
-        const x2 = r[T0];
-        const x3 = r[T0 + 1];
-        const a = (x1 + x3 - 2 * x2) / 2;
-        const b = (x3 - x1) / 2;
-        
-        if (a) {
-            T0 = T0 - b / (2 * a);
+        // Parabolic interpolation for precision
+        if (T0 > 0 && T0 < r.length - 1) {
+            const x1 = r[T0 - 1];
+            const x2 = r[T0];
+            const x3 = r[T0 + 1];
+            const a = (x1 + x3 - 2 * x2) / 2;
+            const b = (x3 - x1) / 2;
+
+            if (a) {
+                T0 = T0 - b / (2 * a);
+            }
         }
 
-        // 计算频率
+        // Calculate frequency
         const frequency = sampleRate / T0;
-        
-        // 计算置信度
+
+        // Calculate confidence
         const confidence = maxval / r[0];
 
         return { frequency, confidence };
@@ -231,25 +243,13 @@ class PitchDetector {
         return noteName + octave;
     }
 
-    stop() {
-        if (this.mediaStream) {
-            this.mediaStream.getTracks().forEach(track => track.stop());
-            this.mediaStream = null;
-        }
-        if (this.audioContext) {
-            this.audioContext.close();
-            this.audioContext = null;
-        }
-        this.isListening = false;
-    }
-
     /**
-     * 检测是否接近目标音符
-     * @param {number} targetMidi - 目标 MIDI 音符编号
-     * @returns {boolean} 是否击中目标音符
+     * Check if detected pitch is close to target
+     * @param {number} targetMidi - Target MIDI note number
+     * @returns {boolean} Whether hit target
      */
     isHitTarget(targetMidi) {
         if (this.currentMidi === null) return false;
-        return Math.abs(this.currentMidi - targetMidi) <= 1; // 允许 ±1 个半音的误差
+        return Math.abs(this.currentMidi - targetMidi) <= 1;
     }
 }

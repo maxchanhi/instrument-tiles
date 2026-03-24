@@ -510,6 +510,69 @@ header h1 {
     box-shadow: 0 0 20px rgba(0, 255, 157, 0.4);
 }
 
+.mic-sensitivity-control {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 180px;
+}
+
+.mic-sensitivity-control label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--success-color);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.mic-sensitivity-control input[type="range"] {
+    width: 160px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(0, 255, 157, 0.2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.mic-sensitivity-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--success-color);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(0, 255, 157, 0.5);
+}
+
+.mic-sensitivity-control input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--success-color);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 8px rgba(0, 255, 157, 0.5);
+}
+
+.mic-hint {
+    font-size: 0.6rem;
+    color: var(--subtitle-color);
+    opacity: 0.6;
+}
+
+body.light-mode .mic-sensitivity-control label {
+    color: #0a7c4e;
+}
+
+body.light-mode .mic-sensitivity-control input[type="range"] {
+    background: rgba(0, 255, 157, 0.3);
+}
+
 .button-row button#preview-btn {
     background: rgba(188, 19, 254, 0.1);
     border-color: rgba(188, 19, 254, 0.3);
@@ -1169,6 +1232,233 @@ body.light-mode .position-slider {
 
 .hit-effect {
     animation: hit 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Practice Mode Panel */
+.practice-mode-panel {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    padding: 30px;
+    border-radius: var(--card-radius);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    margin-bottom: 30px;
+}
+
+.practice-mode-panel h3 {
+    text-align: center;
+    margin-bottom: 8px;
+    color: var(--secondary-color);
+    font-size: 1.5rem;
+}
+
+.practice-subtitle {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--subtitle-color);
+    margin-bottom: 20px;
+}
+
+.practice-struggling-section {
+    margin-bottom: 20px;
+}
+
+.practice-struggling-section h4 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--primary-color);
+    margin-bottom: 12px;
+    font-weight: 700;
+}
+
+.practice-struggling-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.practice-empty {
+    font-style: italic;
+    opacity: 0.4;
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 15px;
+}
+
+.practice-note-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    border-left: 3px solid var(--primary-color);
+    transition: all 0.2s ease;
+}
+
+.practice-note-item.hard {
+    border-left-color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.08);
+}
+
+.practice-note-item.medium {
+    border-left-color: #ffd700;
+    background: rgba(255, 215, 0, 0.08);
+}
+
+.practice-note-item.easy {
+    border-left-color: #00ff9d;
+    background: rgba(0, 255, 157, 0.08);
+}
+
+.practice-note-rank {
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--secondary-color);
+    min-width: 24px;
+}
+
+.practice-note-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-color);
+    flex: 1;
+}
+
+.practice-note-stat {
+    font-size: 0.75rem;
+    color: var(--subtitle-color);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.practice-info {
+    font-size: 0.75rem;
+    color: var(--status-color);
+    margin-top: 10px;
+    text-align: center;
+}
+
+.practice-controls-row {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.practice-control-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.practice-control-group label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--secondary-color);
+    font-weight: 700;
+}
+
+.practice-control-group input[type="range"] {
+    width: 160px;
+}
+
+.practice-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.practice-actions button {
+    background: rgba(188, 19, 254, 0.15);
+    color: #e0aaff;
+    border: 1px solid rgba(188, 19, 254, 0.4);
+    padding: 12px 28px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 700;
+    outline: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.practice-actions button:hover:not(:disabled) {
+    background: rgba(188, 19, 254, 0.25);
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px rgba(188, 19, 254, 0.4);
+    border-color: var(--secondary-color);
+}
+
+.practice-actions button:disabled {
+    background: rgba(255, 255, 255, 0.02);
+    color: rgba(255, 255, 255, 0.2);
+    border-color: transparent;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.practice-actions button#practice-exit-btn {
+    background: rgba(255, 0, 0, 0.15);
+    color: #ff6b6b;
+    border-color: rgba(255, 0, 0, 0.3);
+}
+
+.practice-actions button#practice-exit-btn:hover {
+    background: rgba(255, 0, 0, 0.25);
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+}
+
+.practice-loop-info {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--secondary-color);
+    text-shadow: 0 0 10px rgba(188, 19, 254, 0.4);
+}
+
+body.light-mode .practice-mode-panel {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .practice-note-item {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+body.light-mode .practice-note-item.hard {
+    background: rgba(255, 107, 107, 0.1);
+}
+
+body.light-mode .practice-note-item.medium {
+    background: rgba(255, 215, 0, 0.1);
+}
+
+body.light-mode .practice-note-item.easy {
+    background: rgba(0, 255, 157, 0.1);
+}
+
+body.light-mode .practice-actions button {
+    background: rgba(188, 19, 254, 0.1);
+    color: #7b2cbf;
+    border-color: rgba(188, 19, 254, 0.3);
+}
+
+body.light-mode .practice-actions button:hover:not(:disabled) {
+    background: rgba(188, 19, 254, 0.2);
+}
+
+body.light-mode .practice-actions button#practice-exit-btn {
+    color: #c0392b;
+    background: rgba(192, 57, 43, 0.1);
+    border-color: rgba(192, 57, 43, 0.3);
 }
 
 /* Responsive */
