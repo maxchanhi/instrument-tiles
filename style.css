@@ -715,6 +715,16 @@ body.light-mode select:focus {
     transform: translateY(1px);
 }
 
+select option {
+    background: #1a1a2e;
+    color: #fff;
+}
+
+body.light-mode select option {
+    background: #fff;
+    color: #1a202e;
+}
+
 /* Game Area Layout */
 .game-container {
     display: flex;
