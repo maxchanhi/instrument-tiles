@@ -115,25 +115,6 @@ class InstrumentTilesGame {
         this.loadDefaultMidi();
         this.displayLeaderboard(); // Load and display leaderboard
         
-        // Auto-connect microphone on page load
-        // Note: Browsers usually block mic access without user interaction.
-        // We attempt it here, and if it fails, the user can still click manually.
-        setTimeout(() => {
-            this.autoConnectMicrophone();
-        }, 1000);
-    }
-
-    async autoConnectMicrophone() {
-        console.log('Attempting auto-connect microphone...');
-        // Only try if not already enabled
-        if (!this.pitchDetectionEnabled) {
-            try {
-                await this.toggleMicrophone();
-            } catch (error) {
-                console.warn('Auto-connect microphone failed:', error);
-                this.updateStatus('Click "Connect Mic" to start');
-            }
-        }
     }
 
     resizeCanvas() {
