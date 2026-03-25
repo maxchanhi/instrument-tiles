@@ -1856,21 +1856,21 @@ class InstrumentTilesGame {
     }
 
     getNoteColor(note) {
-        // Return different colors based on pitch
-        const octave = Math.floor(note.midi / 12) - 1;
+        // Chroma-Notes / Boomwhacker color scheme for natural notes,
+        // with darker variants for sharps/flats
         const colors = [
-            '#FF6B6B', // C
-            '#FFA500', // C#
-            '#FFD700', // D
-            '#90EE90', // D#
-            '#00CED1', // E
-            '#4169E1', // F
-            '#9370DB', // F#
-            '#FF69B4', // G
-            '#FFA500', // G#
-            '#FFD700', // A
-            '#90EE90', // A#
-            '#00CED1'  // B
+            '#E53935', // 0:  C  (red)
+            '#C62828', // 1:  C# (dark red)
+            '#FF9800', // 2:  D  (orange)
+            '#E65100', // 3:  D# (dark orange)
+            '#FFEB3B', // 4:  E  (yellow)
+            '#4CAF50', // 5:  F  (green)
+            '#2E7D32', // 6:  F# (dark green)
+            '#00BCD4', // 7:  G  (light blue)
+            '#00838F', // 8:  G# (teal)
+            '#1565C0', // 9:  A  (dark blue)
+            '#0D47A1', // 10: A# (navy)
+            '#9C27B0'  // 11: B  (purple)
         ];
         return colors[note.midi % 12];
     }
