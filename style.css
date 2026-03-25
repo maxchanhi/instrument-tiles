@@ -1227,6 +1227,29 @@ body.light-mode .position-slider {
     opacity: 0.8;
 }
 
+.coffee-btn {
+    display: inline-block;
+    margin-bottom: 8px;
+    padding: 6px 16px;
+    background: #FFDD00;
+    color: #000;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.coffee-btn:hover {
+    background: #F0C040;
+    transform: translateY(-1px);
+}
+
+body.light-mode .coffee-btn {
+    background: #FFDD00;
+    color: #000;
+}
+
 /* Hit Effects (used by JS) */
 @keyframes hit {
     0% { transform: scale(1); opacity: 1; filter: brightness(1); }
