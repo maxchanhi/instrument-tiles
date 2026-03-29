@@ -585,7 +585,7 @@ class InstrumentTilesGame {
         
         // If few notes, wider blocks; if many, compress appropriately
         // Set min and max lane width
-        const minLaneWidth = 40;  // Min width
+        const minLaneWidth = 2;   // Min width - allows more notes on narrow screens
         const maxLaneWidth = 120; // Max width
         
         // Calculate lane width dynamically based on unique pitch count
@@ -620,7 +620,7 @@ class InstrumentTilesGame {
         this.notes.forEach(note => {
             const lane = midiToLane.get(note.midi);
             note.x = offsetX + lane * laneWidth;
-            note.width = laneWidth - 4; // Leave some gap
+            note.width = Math.max(laneWidth - 4, 2); // Leave some gap, min 2px
         });
     }
 
@@ -1212,7 +1212,7 @@ class InstrumentTilesGame {
         flashEl.style.position = 'absolute';
         flashEl.style.left = flashX + 'px';
         flashEl.style.top = '0';
-        flashEl.style.width = (this.laneWidth - 2) + 'px';
+        flashEl.style.width = Math.max(this.laneWidth - 2, 1) + 'px';
         flashEl.style.height = '100%';
         flashEl.style.background = 'rgba(255, 255, 255, 0.3)';
         flashEl.style.pointerEvents = 'none';
@@ -1756,13 +1756,14 @@ class InstrumentTilesGame {
 
         for (let i = 0; i < this.laneCount; i++) {
             const x = offsetX + i * this.laneWidth;
+            const w = Math.max(this.laneWidth - 2, 1);
             this.ctx.fillStyle = i % 2 === 0 ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.1)';
-            this.ctx.fillRect(x, 0, this.laneWidth - 2, this.canvasHeight);
+            this.ctx.fillRect(x, 0, w, this.canvasHeight);
             
             // Draw lane borders
             this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
             this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(x, 0, this.laneWidth - 2, this.canvasHeight);
+            this.ctx.strokeRect(x, 0, w, this.canvasHeight);
         }
     }
 
