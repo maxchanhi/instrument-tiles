@@ -109,7 +109,13 @@ class InstrumentTilesGame {
 
     init() {
         this.resizeCanvas();
-        window.addEventListener('resize', () => this.resizeCanvas());
+        let resizeTimer;
+        const debouncedResize = () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => this.resizeCanvas(), 100);
+        };
+        window.addEventListener('resize', debouncedResize);
+        window.addEventListener('orientationchange', debouncedResize);
         this.setupEventListeners();
         this.render();
         this.loadDefaultMidi();
@@ -119,11 +125,16 @@ class InstrumentTilesGame {
 
     resizeCanvas() {
         const rect = this.canvas.parentElement.getBoundingClientRect();
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.height;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        this.canvas.width = rect.width * dpr;
+        this.canvas.height = rect.height * dpr;
+        this.canvas.style.width = rect.width + 'px';
+        this.canvas.style.height = rect.height + 'px';
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.canvasWidth = rect.width;
         this.canvasHeight = rect.height;
         this.judgmentLineY = this.canvasHeight - 80;
+        if (this.judgmentLineY < 100) this.judgmentLineY = Math.max(this.canvasHeight * 0.8, 50);
     }
 
     setupEventListeners() {

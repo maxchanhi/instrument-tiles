@@ -1512,7 +1512,8 @@ body.light-mode .practice-actions button#practice-exit-btn {
     }
     
     .game-area {
-        min-height: 500px;
+        min-height: 400px;
+        height: 50vh;
     }
 }
 
@@ -1533,5 +1534,33 @@ body.light-mode .practice-actions button#practice-exit-btn {
     .control-group button,
     .control-group input[type="range"] {
         width: 100%;
+    }
+
+    .game-area {
+        min-height: 300px;
+        height: 45vh;
+    }
+
+    .info-panel {
+        flex-wrap: wrap;
+    }
+
+    .info-panel > div {
+        flex: 1 1 45%;
+    }
+}
+
+@media (max-width: 480px) {
+    header h1 {
+        font-size: 1.8rem;
+    }
+
+    .game-area {
+        min-height: 250px;
+        height: 40vh;
+    }
+
+    .info-panel > div {
+        flex: 1 1 100%;
     }
 }
