@@ -6,6 +6,7 @@ class SimpleMidiParser {
         this.tracks = [];
         this.ticksPerBeat = 480;
         this.bpm = 120; // Default MIDI tempo
+        this.timeSignature = { numerator: 4, denominator: 4 }; // Default 4/4
         this.parse();
     }
 
@@ -86,6 +87,13 @@ class SimpleMidiParser {
                     this.bpm = 60000000 / microsecondsPerBeat;
                      console.log(`BPM: ${this.bpm.toFixed(2)}`);
                      this.pos += 3;
+                } else if (metaType === 0x58 && metaLength === 4) {
+                    // Time Signature
+                    const numerator = this.data.getUint8(this.pos);
+                    const denominator = Math.pow(2, this.data.getUint8(this.pos + 1));
+                    this.timeSignature = { numerator, denominator };
+                    console.log(`Time Signature: ${numerator}/${denominator}`);
+                    this.pos += 4;
                 } else {
                     this.pos += metaLength;
                 }

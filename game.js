@@ -396,6 +396,9 @@ class InstrumentTilesGame {
                 bpmInput.value = Math.round(this.midiData.bpm);
             }
         }
+
+        // Apply time signature from MIDI
+        this.applyTimeSignature();
         
         this.parseMidiData();
         this.updateStatus(`${fileName} loaded! ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
@@ -455,6 +458,9 @@ class InstrumentTilesGame {
                 }
             }
 
+            // Apply time signature from MIDI
+            this.applyTimeSignature();
+            
             this.parseMidiData();
             this.updateStatus(`Default song loaded! Total ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
             this.enableControls();
@@ -1017,6 +1023,35 @@ class InstrumentTilesGame {
         }
     }
 
+    applyTimeSignature() {
+        if (!this.midiData || !this.midiData.timeSignature) return;
+        const { numerator, denominator } = this.midiData.timeSignature;
+        const isCompound = denominator === 8 && numerator % 3 === 0;
+
+        if (isCompound) {
+            // Compound time: beat unit is dotted quarter (1.5 quarter notes)
+            this.metronomeBeatUnit = 1.5;
+            this.beatsPerBar = numerator / 3; // 6/8→2, 9/8→3, 12/8→4
+        } else {
+            this.metronomeBeatUnit = 1;
+            this.beatsPerBar = numerator;
+        }
+
+        // Update count-in UI to match
+        const countInInput = document.getElementById('count-in-beats');
+        if (countInInput) {
+            countInInput.value = this.beatsPerBar;
+        }
+
+        // Update time signature display
+        const tsDisplay = document.getElementById('time-signature');
+        if (tsDisplay) {
+            tsDisplay.textContent = `${numerator}/${denominator}`;
+        }
+
+        console.log(`Time signature: ${numerator}/${denominator}${isCompound ? ' (compound)' : ''}, beatUnit=${this.metronomeBeatUnit}, beatsPerBar=${this.beatsPerBar}`);
+    }
+
     initializeMetronomeClock(initialAdjustedTime) {
         // Grid should start at 0 (or nearest beat)
         this.metronomeGridStart = 0;
@@ -1033,10 +1068,10 @@ class InstrumentTilesGame {
 
     playCountIn(firstNoteBeat) {
         // Find the beats that occur exactly before the first note's beat
-        // These are the same beats as the song's grid
+        // In compound time, beats are spaced by metronomeBeatUnit (1.5 quarter notes)
         for (let i = this.beatsPerBar; i > 0; i--) {
-            const countInBeat = firstNoteBeat - i;
-            const audioTime = this.startTime + (countInBeat * this.metronomeBeatUnit / this.speed);
+            const countInBeat = firstNoteBeat - i * this.metronomeBeatUnit;
+            const audioTime = this.startTime + (countInBeat / this.speed);
             
             // Only play if it's in the future (though count-in should always be)
             if (audioTime >= this.audioContext.currentTime) {

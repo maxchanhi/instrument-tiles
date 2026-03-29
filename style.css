@@ -646,6 +646,18 @@ select {
     max-width: 120px !important;
 }
 
+.time-signature-display {
+    font-size: 0.9rem;
+    color: var(--subtitle-color);
+    margin-left: 10px;
+    white-space: nowrap;
+}
+
+#time-signature {
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
 input[type="text"]:focus,
 input[type="number"]:focus,
 textarea:focus,
