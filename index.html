@@ -104,11 +104,17 @@
 
             <div class="controls-row" style="margin-top: 20px;">
                 <div class="control-group">
-                    <label for="bpm-input">BPM</label>
-                    <input type="number" id="bpm-input" min="30" max="300" value="120" class="small-input">
+                    <div class="inner-controls-row">
+                        <div class="inner-control">
+                            <label for="bpm-input">BPM</label>
+                            <input type="number" id="bpm-input" min="30" max="300" value="120" class="small-input">
+                        </div>
+                        <div class="inner-control">
+                            <label for="metronome-toggle">Metronome</label>
+                            <input type="checkbox" id="metronome-toggle" checked>
+                        </div>
+                    </div>
                     <span class="time-signature-display">Time Sig: <span id="time-signature">4/4</span></span>
-                    <label for="metronome-toggle">Metronome</label>
-                    <input type="checkbox" id="metronome-toggle" checked>
                 </div>
 
                 <div class="control-group">
@@ -191,7 +197,7 @@
             <a href="https://buymeacoffee.com/edu_cluster" target="_blank" class="coffee-btn">
                     ☕ Buy me a coffee
                 </a>
-            <p>&copy; Chan Chak Hang Max 2026 | version 2.3.0</p>
+            <p>&copy; Chan Chak Hang Max 2026 | version 2.1.7</p>
         </footer>
 
         <!-- MIDI Drawer -->
