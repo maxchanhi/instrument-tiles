@@ -49,93 +49,104 @@ class MusicXmlParser {
                     this.divisions = parseInt(divisionsEl.textContent);
                 }
 
-                // Update tempo
-                const tempoEl = measure.querySelector('per-minute');
-                if (tempoEl) {
-                    const tempo = parseFloat(tempoEl.textContent);
-                    if (!isNaN(tempo) && tempo > 0) {
-                        this.bpm = tempo;
-                    }
-                }
-
-                // Update time signature
-                const beatsEl = measure.querySelector('beats');
-                const beatTypeEl = measure.querySelector('beat-type');
-                if (beatsEl && beatTypeEl) {
-                    this.timeSignature.numerator = parseInt(beatsEl.textContent);
-                    this.timeSignature.denominator = parseInt(beatTypeEl.textContent);
-                }
-
                 // Calculate measure start in beats
                 const measureStart = currentBeat;
 
-                // Process notes in this measure
+                // Process all elements in measure order (notes, rests, backup, forward)
                 let noteOffset = 0; // offset within measure in divisions
                 let lastNoteTime = -1; // track last non-chord note time for chord handling
 
-                const noteElements = measure.querySelectorAll('note');
-                noteElements.forEach(noteEl => {
-                    // Check if rest
-                    const isRest = noteEl.querySelector('rest') !== null;
+                // Process child elements in document order
+                Array.from(measure.children).forEach(child => {
+                    if (child.tagName === 'attributes') {
+                        // Update divisions from attributes
+                        const divEl = child.querySelector('divisions');
+                        if (divEl) {
+                            const newDiv = parseInt(divEl.textContent);
+                            if (!isNaN(newDiv) && newDiv > 0) this.divisions = newDiv;
+                        }
+                        // Update time signature
+                        const beatsEl = child.querySelector('beats');
+                        const beatTypeEl = child.querySelector('beat-type');
+                        if (beatsEl && beatTypeEl) {
+                            this.timeSignature.numerator = parseInt(beatsEl.textContent);
+                            this.timeSignature.denominator = parseInt(beatTypeEl.textContent);
+                        }
+                    } else if (child.tagName === 'note') {
+                        const isRest = child.querySelector('rest') !== null;
+                        const isChord = child.querySelector('chord') !== null;
 
-                    // Check if chord (shares start time with previous note)
-                    const isChord = noteEl.querySelector('chord') !== null;
+                        // Get duration in divisions
+                        const durationEl = child.querySelector('duration');
+                        let durationDivisions = durationEl ? parseInt(durationEl.textContent) : 0;
+                        if (isNaN(durationDivisions) || durationDivisions <= 0) {
+                            durationDivisions = this.divisions;
+                        }
+                        const durationBeats = durationDivisions / this.divisions;
 
-                    // Get duration in divisions
-                    const durationEl = noteEl.querySelector('duration');
-                    const durationDivisions = durationEl ? parseInt(durationEl.textContent) : this.divisions;
-                    const durationBeats = durationDivisions / this.divisions;
+                        if (!isRest) {
+                            // Get pitch
+                            const pitchEl = child.querySelector('pitch');
+                            if (pitchEl) {
+                                const step = pitchEl.querySelector('step')?.textContent || 'C';
+                                const alter = pitchEl.querySelector('alter')?.textContent || '0';
+                                const octave = pitchEl.querySelector('octave')?.textContent || '4';
+                                const midi = this.pitchToMidi(step, parseInt(alter), parseInt(octave));
+                                const name = this.midiToNoteName(midi);
 
-                    if (isRest) {
+                                // Calculate start time
+                                let startTimeBeats;
+                                if (isChord && lastNoteTime >= 0) {
+                                    startTimeBeats = lastNoteTime;
+                                } else {
+                                    startTimeBeats = measureStart + noteOffset / this.divisions;
+                                    lastNoteTime = startTimeBeats;
+                                }
+
+                                const ties = child.querySelectorAll('tie');
+                                let tieType = null;
+                                ties.forEach(tie => {
+                                    tieType = tie.getAttribute('type');
+                                });
+
+                                notes.push({
+                                    midi, name,
+                                    startTime: startTimeBeats,
+                                    endTime: startTimeBeats + durationBeats,
+                                    duration: durationBeats,
+                                    velocity: 0.8,
+                                    channel: 0,
+                                    tieType
+                                });
+                            }
+                        }
+
+                        // Advance offset (unless it's a chord note)
                         if (!isChord) {
                             noteOffset += durationDivisions;
                         }
-                        return;
+                    } else if (child.tagName === 'backup') {
+                        // Move position backward
+                        const durEl = child.querySelector('duration');
+                        if (durEl) {
+                            const backup = parseInt(durEl.textContent);
+                            if (!isNaN(backup)) noteOffset = Math.max(0, noteOffset - backup);
+                        }
+                    } else if (child.tagName === 'forward') {
+                        // Move position forward
+                        const durEl = child.querySelector('duration');
+                        if (durEl) {
+                            const fwd = parseInt(durEl.textContent);
+                            if (!isNaN(fwd) && fwd > 0) noteOffset += fwd;
+                        }
+                    } else if (child.tagName === 'direction') {
+                        // Check for tempo marking
+                        const tempoEl = child.querySelector('per-minute');
+                        if (tempoEl) {
+                            const tempo = parseFloat(tempoEl.textContent);
+                            if (!isNaN(tempo) && tempo > 0) this.bpm = tempo;
+                        }
                     }
-
-                    // Get pitch
-                    const pitchEl = noteEl.querySelector('pitch');
-                    if (!pitchEl) return;
-
-                    const step = pitchEl.querySelector('step')?.textContent || 'C';
-                    const alter = pitchEl.querySelector('alter')?.textContent || '0';
-                    const octave = pitchEl.querySelector('octave')?.textContent || '4';
-
-                    const midi = this.pitchToMidi(step, parseInt(alter), parseInt(octave));
-                    const name = this.midiToNoteName(midi);
-
-                    // Calculate start time in beats
-                    let startTimeBeats;
-                    if (isChord && lastNoteTime >= 0) {
-                        startTimeBeats = lastNoteTime;
-                    } else {
-                        startTimeBeats = measureStart + noteOffset / this.divisions;
-                        lastNoteTime = startTimeBeats;
-                        noteOffset += durationDivisions;
-                    }
-
-                    const endTimeBeats = startTimeBeats + durationBeats;
-
-                    // Get tie info from MusicXML (explicit tied notes)
-                    const ties = noteEl.querySelectorAll('tie');
-                    let tieType = null;
-                    ties.forEach(tie => {
-                        tieType = tie.getAttribute('type'); // 'start' or 'stop'
-                    });
-
-                    // Get velocity from dynamics if available
-                    const velocity = 0.8; // default; MusicXML dynamics are complex
-
-                    notes.push({
-                        midi: midi,
-                        name: name,
-                        startTime: startTimeBeats,
-                        endTime: endTimeBeats,
-                        duration: durationBeats,
-                        velocity: velocity,
-                        channel: 0,
-                        tieType: tieType // 'start', 'stop', or null
-                    });
                 });
 
                 // Advance to next measure
@@ -153,6 +164,14 @@ class MusicXmlParser {
 
             this.tracks.push({ notes });
             console.log(`Part ${partId}: ${notes.length} notes`);
+            if (notes.length > 0) {
+                console.log('First 5 notes:', notes.slice(0, 5).map(n => ({
+                    name: n.name,
+                    start: n.startTime.toFixed(3),
+                    end: n.endTime.toFixed(3),
+                    duration: n.duration.toFixed(3)
+                })));
+            }
         });
     }
 
