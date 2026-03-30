@@ -105,17 +105,28 @@ You can adjust game parameters directly in the UI or in `game.js`:
 // Note falling speed (pixels/sec)
 this.noteSpeed = 150;
 
-// Judgment windows (ms)
+// Hit timing windows (ms)
 this.hitWindow = {
-    perfect: 80,    // Perfect judgment
-    good: 150,      // Good judgment
-    miss: 200       // Miss judgment
+    perfect: 80,    // Perfect timing window
+    good: 150,      // Good timing window
+    miss: 200       // Miss timing window
 };
 
 // Time signature defaults (auto-detected from MIDI)
 this.beatsPerBar = 2;
 this.metronomeBeatUnit = 1; // 1 for simple time, 1.5 for compound (6/8, 9/8, 12/8)
 ```
+
+### Judgment System (Sustain-Based)
+
+| Rating | Sustain % | Points |
+|--------|-----------|--------|
+| PERFECT | ≥ 80% | 150 |
+| GOOD | ≥ 50% | 75 |
+| OK | ≥ 20% | 25 |
+| MISS | < 20% | 0 |
+
+Short notes (< 0.3s duration) are judged on pitch only — any hold is PERFECT, no hold is MISS.
 
 ### Responsive Canvas
 - Canvas height auto-adjusts: 45vh on tablets, 40vh on phones, 35vh on very small screens
