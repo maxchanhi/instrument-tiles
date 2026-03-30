@@ -199,13 +199,15 @@ class InstrumentTilesGame {
         const bpmInput = document.getElementById('bpm-input');
         if (bpmInput) {
             bpmInput.addEventListener('input', (e) => {
-                const newBpm = parseFloat(e.target.value);
-                if (newBpm && newBpm > 0) {
-                    this.speed = newBpm / 60;
+                const displayBpm = parseFloat(e.target.value);
+                if (displayBpm && displayBpm > 0) {
+                    // Convert display BPM (beat unit rate) to quarter note BPM for internal use
+                    const midiBpm = displayBpm * this.metronomeBeatUnit;
+                    this.speed = midiBpm / 60;
                     if (this.midiData) {
-                        this.midiData.bpm = newBpm; // Update parser data too
+                        this.midiData.bpm = midiBpm;
                     }
-                    console.log(`BPM updated to: ${newBpm} (Speed: ${this.speed.toFixed(2)})`);
+                    console.log(`BPM updated to: ${displayBpm} (Speed: ${this.speed.toFixed(2)}, MIDI BPM: ${midiBpm.toFixed(1)})`);
                 }
             });
         }
@@ -393,15 +395,9 @@ class InstrumentTilesGame {
         if (this.midiData.bpm) {
             this.speed = this.midiData.bpm / 60;
             console.log(`Playback speed set to: ${this.speed.toFixed(2)} beats/sec (BPM: ${this.midiData.bpm.toFixed(1)})`);
-            
-            // Update UI BPM display
-            const bpmInput = document.getElementById('bpm-input');
-            if (bpmInput) {
-                bpmInput.value = Math.round(this.midiData.bpm);
-            }
         }
 
-        // Apply time signature from MIDI
+        // Apply time signature from MIDI (also updates BPM display for compound time)
         this.applyTimeSignature();
         
         this.parseMidiData();
@@ -454,15 +450,9 @@ class InstrumentTilesGame {
             if (this.midiData.bpm) {
                 this.speed = this.midiData.bpm / 60;
                 console.log(`Playback speed set to: ${this.speed.toFixed(2)} beats/sec (BPM: ${this.midiData.bpm.toFixed(1)})`);
-
-                // Update UI BPM display
-                const bpmInput = document.getElementById('bpm-input');
-                if (bpmInput) {
-                    bpmInput.value = Math.round(this.midiData.bpm);
-                }
             }
 
-            // Apply time signature from MIDI
+            // Apply time signature from MIDI (also updates BPM display for compound time)
             this.applyTimeSignature();
             
             this.parseMidiData();
@@ -1045,6 +1035,23 @@ class InstrumentTilesGame {
         const countInInput = document.getElementById('count-in-beats');
         if (countInInput) {
             countInInput.value = this.beatsPerBar;
+        }
+
+        // Update BPM display to show beat unit rate (not quarter note rate)
+        if (this.midiData.bpm) {
+            const displayBpm = this.midiData.bpm / this.metronomeBeatUnit;
+            const bpmInput = document.getElementById('bpm-input');
+            if (bpmInput) {
+                bpmInput.value = Math.round(displayBpm);
+            }
+            // Update speed to match beat unit rate
+            this.speed = displayBpm * this.metronomeBeatUnit / 60;
+        }
+
+        // Update BPM label to show beat symbol
+        const bpmSymbol = document.getElementById('bpm-beat-symbol');
+        if (bpmSymbol) {
+            bpmSymbol.textContent = isCompound ? '♩.' : '♩';
         }
 
         // Update time signature display

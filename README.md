@@ -101,6 +101,9 @@ You can adjust game parameters directly in the UI or in `game.js`:
 - **Count-In Beats** - Number of metronome beats before playback starts (default 2, auto-adjusts for compound time)
 - **Tuning Offset** - Pitch detection tuning offset in cents
 
+### Compound Time BPM
+In compound time signatures (6/8, 9/8, 12/8), the BPM control automatically adapts to represent **dotted quarter note** beats per minute (♩.), not quarter notes (♩). The label next to the BPM input shows which beat unit is active.
+
 ### Judgment System
 
 | Rating  | Sustain % | Points |
