@@ -91,11 +91,19 @@ Fingering data can include:
 
 ## Game Configuration
 
-You can adjust game parameters in `game.js`:
+You can adjust game parameters directly in the UI or in `game.js`:
 
+### UI Controls
+- **Speed** - Playback speed slider (0.2x to 2.0x, default 1.0x)
+- **Note Speed** - Tile falling speed (pixels/sec, default 150)
+- **Tile Duration** - Display duration of tiles (beats)
+- **Count-In Beats** - Number of metronome beats before playback starts (default 2, auto-adjusts for compound time)
+- **Tuning Offset** - Pitch detection tuning offset in cents
+
+### Key Code Defaults
 ```javascript
-// Note falling speed
-this.noteSpeed = 300; // pixels/second
+// Note falling speed (pixels/sec)
+this.noteSpeed = 150;
 
 // Judgment windows (ms)
 this.hitWindow = {
@@ -103,7 +111,28 @@ this.hitWindow = {
     good: 150,      // Good judgment
     miss: 200       // Miss judgment
 };
+
+// Time signature defaults (auto-detected from MIDI)
+this.beatsPerBar = 2;
+this.metronomeBeatUnit = 1; // 1 for simple time, 1.5 for compound (6/8, 9/8, 12/8)
 ```
+
+### Responsive Canvas
+- Canvas height auto-adjusts: 45vh on tablets, 40vh on phones, 35vh on very small screens
+- Tile minimum width: 2px (ensures visibility on narrow screens)
+
+### Tile Colors (Chroma-Notes / Boomwhacker)
+| Note | Color |
+|------|-------|
+| C | Red |
+| D | Orange |
+| E | Yellow |
+| F | Green |
+| G | Light Blue |
+| A | Dark Blue |
+| B | Purple |
+
+Sharp/flat variants use darker shades of the natural note color.
 
 
 
