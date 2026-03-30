@@ -142,6 +142,9 @@ class SimpleMidiParser {
             }
         }
 
+        // Merge tied notes (consecutive same-pitch notes with no gap)
+        this.mergeTiedNotes(notes);
+
         this.tracks.push({ notes });
         
         // Debug info
@@ -198,5 +201,44 @@ class SimpleMidiParser {
         const octave = Math.floor(midi / 12) - 1;
         const noteName = noteNames[midi % 12];
         return noteName + octave;
+    }
+
+    mergeTiedNotes(notes) {
+        // Sort by start time, then by midi pitch
+        notes.sort((a, b) => a.startTime - b.startTime || a.midi - b.midi);
+
+        // Tolerance in beats — handles ties with small gaps or overlaps
+        // 0.2 beats ≈ 96 ticks at 480 tpqn, enough for quantization artifacts
+        const tolerance = 0.2;
+        let merged = 0;
+        let i = 0;
+
+        while (i < notes.length - 1) {
+            const current = notes[i];
+            const next = notes[i + 1];
+
+            const samePitch = current.midi === next.midi;
+            const sameChannel = current.channel === next.channel;
+            const gap = next.startTime - current.endTime;
+
+            // Merge if same pitch+channel AND:
+            // 1. Next starts right when current ends (gap ≈ 0)
+            // 2. Next starts before current ends (overlap / legato)
+            // 3. Small gap within tolerance
+            if (samePitch && sameChannel && gap < tolerance) {
+                // Extend current to cover the full span
+                current.endTime = Math.max(current.endTime, next.endTime);
+                current.duration = current.endTime - current.startTime;
+                current.duration = Math.max(current.duration, 0.05);
+                current.velocity = Math.max(current.velocity, next.velocity);
+                notes.splice(i + 1, 1);
+                merged++;
+                // Don't increment i — check if the next note also ties
+            } else {
+                i++;
+            }
+        }
+
+        console.log(`After merging ties: ${notes.length} notes (${merged} merged)`);
     }
 }

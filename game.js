@@ -378,6 +378,10 @@ class InstrumentTilesGame {
     processMidiBuffer(arrayBuffer, fileName) {
         console.log(`Processing MIDI: ${fileName}, size: ${arrayBuffer.byteLength} bytes`);
 
+        // Cache buffer for re-parse
+        this.midiBuffer = arrayBuffer;
+        this.midiFileName = fileName;
+
         // Clear difficulty tracking for new file
         this.noteStats = {};
 
@@ -490,8 +494,8 @@ class InstrumentTilesGame {
                 if (!noteMap.has(noteKey)) {
                     // Apply duration ratio to tile length
                     const scaledDuration = note.duration * this.tileDurationRatio;
-                    // Limit max display length
-                    const displayDuration = Math.min(scaledDuration, 1 * this.tileDurationRatio);
+                    // Cap at 1 beat for normal notes, but keep full duration for long/tied notes
+                    const displayDuration = note.duration <= 1 ? Math.min(scaledDuration, 1 * this.tileDurationRatio) : scaledDuration;
                     
                     const noteObj = {
                         midi: note.midi,
