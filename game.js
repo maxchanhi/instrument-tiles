@@ -405,9 +405,12 @@ class InstrumentTilesGame {
 
         // Parse using appropriate parser
         if (format === 'musicxml') {
-            this.midiData = new MusicXmlParser(data);
+            this.midiData = new MusicXmlParser(data, this.tileDurationRatio);
+            // MusicXML parser outputs tiles directly
+            this.useMusicXmlTiles();
         } else {
             this.midiData = new SimpleMidiParser(data);
+            this.parseMidiData();
         }
         console.log('Parsed successfully:', this.midiData);
 
@@ -420,7 +423,6 @@ class InstrumentTilesGame {
         // Apply time signature (also updates BPM display for compound time)
         this.applyTimeSignature();
 
-        this.parseMidiData();
         this.updateStatus(`${fileName} loaded! ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
         this.enableControls();
         this.render();
@@ -556,6 +558,37 @@ class InstrumentTilesGame {
         this.notes.sort((a, b) => a.startTime - b.startTime);
 
         // Calculate note positions on tracks (adjust based on unique pitch count)
+        this.calculateNotePositions();
+    }
+
+    /**
+     * Use tiles directly from MusicXML parser
+     */
+    useMusicXmlTiles() {
+        if (!this.midiData || !this.midiData.tiles) {
+            console.error('No MusicXML tiles available');
+            return;
+        }
+
+        this.notes = this.midiData.tiles;
+        this.totalNotes = this.notes.length;
+        this.uniqueNotes = this.midiData.uniqueNotes;
+        this.minMidi = this.midiData.minMidi;
+
+        console.log(`MusicXML tiles: ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
+
+        // Detect consecutive same notes, dynamically adjust judgment window
+        this.adjustConsecutiveNotes();
+
+        // Calculate song length
+        this.songLength = this.midiData.songLength;
+        this.currentTime = 0;
+        if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
+
+        // Sort by start time
+        this.notes.sort((a, b) => a.startTime - b.startTime);
+
+        // Calculate note positions
         this.calculateNotePositions();
     }
 
