@@ -5,6 +5,7 @@ A web-based pedagogical music game designed for practicing instrument intonation
 ## Features
 
 - ✅ **MIDI File Upload** - Supports standard MIDI file formats (.mid, .midi)
+- ✅ **MusicXML File Upload** - Supports MusicXML format (.musicxml, .xml) with explicit tie handling
 - ✅ **Real-time Pitch Detection** - Play your real instrument to hit the notes
 - ✅ **Microphone Integration** - Detects pitch directly from your instrument
 - ✅ **Speed Control** - Adjustable playback speed from 0.5x to 2.0x
@@ -67,6 +68,7 @@ music_game/
 ├── game.js             # Core game logic
 ├── pitch-detector.js   # Microphone pitch detection logic
 ├── midi-parser.js      # MIDI file parsing logic
+├── musicxml-parser.js  # MusicXML file parsing logic
 └── README.md           # Documentation
 ```
 

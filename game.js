@@ -349,14 +349,20 @@ class InstrumentTilesGame {
         this.reset();
 
         try {
-            const arrayBuffer = await file.arrayBuffer();
-            this.processMidiBuffer(arrayBuffer, file.name);
-            
-            // Add to drawer "Your MIDIs"
-            this.addCustomMidiToDrawer(file.name, arrayBuffer);
+            const isMusicXml = file.name.toLowerCase().endsWith('.musicxml') || file.name.toLowerCase().endsWith('.xml');
+
+            if (isMusicXml) {
+                const text = await file.text();
+                this.processMidiBuffer(text, file.name, 'musicxml');
+                this.addCustomMidiToDrawer(file.name, text, 'musicxml');
+            } else {
+                const arrayBuffer = await file.arrayBuffer();
+                this.processMidiBuffer(arrayBuffer, file.name, 'midi');
+                this.addCustomMidiToDrawer(file.name, arrayBuffer, 'midi');
+            }
         } catch (error) {
-            console.error('MIDI load failed:', error);
-            this.updateStatus(`MIDI load failed: ${error.message}`);
+            console.error('File load failed:', error);
+            this.updateStatus(`Load failed: ${error.message}`);
         }
     }
 
@@ -368,45 +374,59 @@ class InstrumentTilesGame {
             const response = await fetch(path);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            const arrayBuffer = await response.arrayBuffer();
-            this.processMidiBuffer(arrayBuffer, path.split('/').pop());
+            const isMusicXml = path.toLowerCase().endsWith('.musicxml') || path.toLowerCase().endsWith('.xml');
+            const fileName = path.split('/').pop();
+
+            if (isMusicXml) {
+                const text = await response.text();
+                this.processMidiBuffer(text, fileName, 'musicxml');
+            } else {
+                const arrayBuffer = await response.arrayBuffer();
+                this.processMidiBuffer(arrayBuffer, fileName, 'midi');
+            }
         } catch (error) {
-            console.error('Error loading MIDI from path:', error);
-            this.updateStatus(`Error loading MIDI: ${error.message}`);
+            console.error('Error loading file from path:', error);
+            this.updateStatus(`Error loading file: ${error.message}`);
         }
     }
 
-    // Common logic to process MIDI buffer
-    processMidiBuffer(arrayBuffer, fileName) {
-        console.log(`Processing MIDI: ${fileName}, size: ${arrayBuffer.byteLength} bytes`);
+    // Common logic to process MIDI or MusicXML buffer
+    processMidiBuffer(data, fileName, format = 'midi') {
+        const size = format === 'midi' ? `${data.byteLength} bytes` : `${data.length} chars`;
+        console.log(`Processing ${format}: ${fileName}, size: ${size}`);
 
-        // Cache buffer for re-parse
-        this.midiBuffer = arrayBuffer;
+        // Cache data for re-parse
+        this.midiBuffer = data;
         this.midiFileName = fileName;
+        this.midiFormat = format;
 
         // Clear difficulty tracking for new file
         this.noteStats = {};
 
-        // Use local MIDI parser
-        this.midiData = new SimpleMidiParser(arrayBuffer);
-        console.log('MIDI parsed successfully:', this.midiData);
-        
-        // Set playback speed based on MIDI BPM (BPM / 60 = beats per second)
+        // Parse using appropriate parser
+        if (format === 'musicxml') {
+            this.midiData = new MusicXmlParser(data);
+        } else {
+            this.midiData = new SimpleMidiParser(data);
+        }
+        console.log('Parsed successfully:', this.midiData);
+
+        // Set playback speed based on BPM (BPM / 60 = beats per second)
         if (this.midiData.bpm) {
             this.speed = this.midiData.bpm / 60;
             console.log(`Playback speed set to: ${this.speed.toFixed(2)} beats/sec (BPM: ${this.midiData.bpm.toFixed(1)})`);
         }
 
-        // Apply time signature from MIDI (also updates BPM display for compound time)
+        // Apply time signature (also updates BPM display for compound time)
         this.applyTimeSignature();
-        
+
         this.parseMidiData();
         this.updateStatus(`${fileName} loaded! ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
         this.enableControls();
         this.render();
     }
 
-    addCustomMidiToDrawer(name, buffer) {
+    addCustomMidiToDrawer(name, data, format = 'midi') {
         const list = document.getElementById('custom-midi-list');
         if (!list) return;
 
@@ -415,11 +435,12 @@ class InstrumentTilesGame {
                              .find(item => item.textContent.includes(name));
         if (existing) return;
 
+        const icon = format === 'musicxml' ? '🎵' : '📄';
         const button = document.createElement('button');
         button.className = 'midi-item';
-        button.innerHTML = `📄 ${name}`;
+        button.innerHTML = `${icon} ${name}`;
         button.addEventListener('click', () => {
-            this.processMidiBuffer(buffer, name);
+            this.processMidiBuffer(data, name, format);
             document.querySelectorAll('.midi-item').forEach(i => i.classList.remove('active'));
             button.classList.add('active');
         });

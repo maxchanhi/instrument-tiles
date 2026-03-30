@@ -214,7 +214,7 @@
                             <span class="upload-icon">📁</span>
                             <span>Choose File</span>
                         </label>
-                        <input type="file" id="midi-upload" accept=".mid,.midi" style="display: none;">
+                        <input type="file" id="midi-upload" accept=".mid,.midi,.musicxml,.xml" style="display: none;">
                     </div>
                 </div>
 
@@ -242,6 +242,7 @@
 
     <!-- 使用本地 MIDI 解析器，无需外部依赖 -->
     <script src="midi-parser.js"></script>
+    <script src="musicxml-parser.js"></script>
     <script src="pitch-detector.js"></script>
     <script src="game.js"></script>
     <script>
