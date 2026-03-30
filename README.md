@@ -18,26 +18,25 @@ A web-based pedagogical music game designed for practicing instrument intonation
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18.0.0 or higher)
-- [uv](https://github.com/astral-sh/uv) (for running Python scripts if needed)
 
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/maxchanhi/instrument-tiles.git
    cd instrument-tiles
    ```
-
 2. Install dependencies:
+
    ```bash
    npm install
    ```
-
 3. Start the server:
+
    ```bash
    npm start
    ```
-
 4. Visit `http://localhost:3000` (or the port specified in your console) to play!
 
 ## How to Play
@@ -85,6 +84,7 @@ game.setFingeringData({
 ```
 
 Fingering data can include:
+
 - Fingering charts/images
 - Text descriptions
 - Fingering animations
@@ -94,57 +94,41 @@ Fingering data can include:
 You can adjust game parameters directly in the UI or in `game.js`:
 
 ### UI Controls
+
 - **Speed** - Playback speed slider (0.2x to 2.0x, default 1.0x)
 - **Note Speed** - Tile falling speed (pixels/sec, default 150)
 - **Tile Duration** - Display duration of tiles (beats)
 - **Count-In Beats** - Number of metronome beats before playback starts (default 2, auto-adjusts for compound time)
 - **Tuning Offset** - Pitch detection tuning offset in cents
 
-### Key Code Defaults
-```javascript
-// Note falling speed (pixels/sec)
-this.noteSpeed = 150;
+### Judgment System
 
-// Hit timing windows (ms)
-this.hitWindow = {
-    perfect: 80,    // Perfect timing window
-    good: 150,      // Good timing window
-    miss: 200       // Miss timing window
-};
-
-// Time signature defaults (auto-detected from MIDI)
-this.beatsPerBar = 2;
-this.metronomeBeatUnit = 1; // 1 for simple time, 1.5 for compound (6/8, 9/8, 12/8)
-```
-
-### Judgment System (Sustain-Based)
-
-| Rating | Sustain % | Points |
-|--------|-----------|--------|
-| PERFECT | ≥ 80% | 150 |
-| GOOD | ≥ 50% | 75 |
-| OK | ≥ 20% | 25 |
-| MISS | < 20% | 0 |
+| Rating  | Sustain % | Points |
+| ------- | --------- | ------ |
+| PERFECT | ≥ 80%    | 150    |
+| GOOD    | ≥ 50%    | 75     |
+| OK      | ≥ 5%    | 25     |
+| MISS    | < 5%     | 0      |
 
 Short notes (< 0.3s duration) are judged on pitch only — any hold is PERFECT, no hold is MISS.
 
 ### Responsive Canvas
+
 - Canvas height auto-adjusts: 45vh on tablets, 40vh on phones, 35vh on very small screens
 - Tile minimum width: 2px (ensures visibility on narrow screens)
 
 ### Tile Colors (Chroma-Notes / Boomwhacker)
-| Note | Color |
-|------|-------|
-| C | Red |
-| D | Orange |
-| E | Yellow |
-| F | Green |
-| G | Light Blue |
-| A | Dark Blue |
-| B | Purple |
+
+| Note | Color      |
+| ---- | ---------- |
+| C    | Red        |
+| D    | Orange     |
+| E    | Yellow     |
+| F    | Green      |
+| G    | Light Blue |
+| A    | Dark Blue  |
+| B    | Purple     |
 
 Sharp/flat variants use darker shades of the natural note color.
-
-
 
 **Happy Practicing!** 🎶

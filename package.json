@@ -1,6 +1,6 @@
 {
   "name": "instrument-tiles",
-  "version": "2.3.1",
+  "version": "2.3.3",
   "description": "A web-based pedagogical music game for practicing instrument intonation and rhythm",
   "main": "server.js",
   "scripts": {

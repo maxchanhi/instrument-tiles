@@ -1294,7 +1294,7 @@ class InstrumentTilesGame {
                 judgment = 'good';
                 scoreAdd = 75;
                 this.combo++;
-            } else if (sustainPercentage >= 0.2) {
+            } else if (sustainPercentage >= 0.05) {
                 judgment = 'ok';
                 scoreAdd = 25;
                 this.combo++;
