@@ -1968,21 +1968,59 @@ class InstrumentTilesGame {
     }
 
     getNoteColor(note) {
-        // Chroma-Notes / Boomwhacker color scheme for natural notes,
-        // with darker variants for sharps/flats
+        // Chroma-Notes / Boomwhacker color scheme
+        // Use note name to distinguish flats from sharps (Bb vs A#)
+        const name = note.name || '';
+
+        // Natural note colors
+        const naturalColors = {
+            'C': '#E53935', // red
+            'D': '#FF9800', // orange
+            'E': '#FFEB3B', // yellow
+            'F': '#4CAF50', // green
+            'G': '#00BCD4', // light blue
+            'A': '#1565C0', // dark blue
+            'B': '#9C27B0'  // purple
+        };
+
+        // Flat variants (darker version of the natural note below)
+        const flatColors = {
+            'Db': '#BF360C', // darker orange (from D)
+            'Eb': '#F9A825', // darker yellow (from E)
+            'Gb': '#1B5E20', // darker green (from F)
+            'Ab': '#006064', // darker teal (from G)
+            'Bb': '#6A1B9A'  // darker purple (from B)
+        };
+
+        // Sharp variants (darker version of the natural note below)
+        const sharpColors = {
+            'C#': '#C62828', // darker red (from C)
+            'D#': '#E65100', // darker orange (from D)
+            'F#': '#2E7D32', // darker green (from F)
+            'G#': '#00838F', // darker teal (from G)
+            'A#': '#0D47A1'  // darker blue (from A)
+        };
+
+        // Check for flat notation first
+        if (name.includes('b')) {
+            const base = name.charAt(0) + 'b';
+            if (flatColors[base]) return flatColors[base];
+        }
+
+        // Check for sharp notation
+        if (name.includes('#')) {
+            if (sharpColors[name.slice(0, 2)]) return sharpColors[name.slice(0, 2)];
+        }
+
+        // Natural note
+        const base = name.charAt(0);
+        if (naturalColors[base]) return naturalColors[base];
+
+        // Fallback: use MIDI pitch class
         const colors = [
-            '#E53935', // 0:  C  (red)
-            '#C62828', // 1:  C# (dark red)
-            '#FF9800', // 2:  D  (orange)
-            '#E65100', // 3:  D# (dark orange)
-            '#FFEB3B', // 4:  E  (yellow)
-            '#4CAF50', // 5:  F  (green)
-            '#2E7D32', // 6:  F# (dark green)
-            '#00BCD4', // 7:  G  (light blue)
-            '#00838F', // 8:  G# (teal)
-            '#1565C0', // 9:  A  (dark blue)
-            '#0D47A1', // 10: A# (navy)
-            '#9C27B0'  // 11: B  (purple)
+            '#E53935', '#C62828', '#FF9800', '#E65100',
+            '#FFEB3B', '#4CAF50', '#2E7D32', '#00BCD4',
+            '#00838F', '#1565C0', '#0D47A1', '#9C27B0'
         ];
         return colors[note.midi % 12];
     }
