@@ -3,9 +3,9 @@ class MusicXmlParser {
     constructor(xmlString, tileDurationRatio = 0.8) {
         this.bpm = 120;
         this.timeSignature = { numerator: 4, denominator: 4 };
-        this.divisions = 4; // divisions per quarter note (default)
-        this.tracks = []; // kept for compatibility
-        this.tiles = []; // direct tile output
+        this.divisions = 4;
+        this.tracks = [];
+        this.tiles = [];
         this.uniqueNotes = 0;
         this.minMidi = 60;
         this.maxMidi = 72;
@@ -23,7 +23,6 @@ class MusicXmlParser {
             throw new Error('Invalid MusicXML: ' + parseError.textContent.slice(0, 100));
         }
 
-        // Detect format: partwise vs timewise
         const partwise = doc.querySelector('score-partwise');
         const timewise = doc.querySelector('score-timewise');
 
@@ -32,40 +31,31 @@ class MusicXmlParser {
         } else if (timewise) {
             this.parseTimewise(doc);
         } else {
-            throw new Error('Unknown MusicXML format (expected score-partwise or score-timewise)');
+            throw new Error('Unknown MusicXML format');
         }
 
-        // Post-processing
         this.calculateStats();
-        console.log(`MusicXML parsed: ${this.tiles.length} tiles, ${this.bpm} BPM, ${this.timeSignature.numerator}/${this.timeSignature.denominator}`);
+        console.log(`MusicXML: ${this.tiles.length} tiles, ${this.bpm} BPM, ${this.timeSignature.numerator}/${this.timeSignature.denominator}, divisions=${this.divisions}`);
     }
 
     calculateStats() {
-        // Calculate unique pitches
         const midiSet = new Set(this.tiles.map(t => t.midi));
         this.uniqueNotes = midiSet.size;
 
-        // Calculate min/max MIDI
         if (this.tiles.length > 0) {
             const midis = this.tiles.map(t => t.midi);
             this.minMidi = Math.min(...midis);
             this.maxMidi = Math.max(...midis);
         }
 
-        // Calculate song length
         const lastTile = this.tiles.reduce((latest, t) =>
             t.endTime > latest.endTime ? t : latest, { endTime: 0 });
-        this.songLength = lastTile.endTime + 2; // 2 beats buffer
+        this.songLength = lastTile.endTime + 2;
 
-        // Build tracks for compatibility
         this.tracks = [{ notes: this.tiles.map(t => ({
-            midi: t.midi,
-            name: t.name,
-            startTime: t.startTime,
-            endTime: t.endTime,
-            duration: t.originalDuration,
-            velocity: t.velocity,
-            channel: 0
+            midi: t.midi, name: t.name,
+            startTime: t.startTime, endTime: t.endTime,
+            duration: t.originalDuration, velocity: t.velocity, channel: 0
         }))}];
     }
 
@@ -73,207 +63,182 @@ class MusicXmlParser {
         const parts = doc.querySelectorAll('score-partwise > part');
 
         parts.forEach((part, partIndex) => {
-            const partId = part.getAttribute('id');
-            const notes = []; // raw notes before tile conversion
-            let currentBeat = 0;
-            this.divisions = 4;
+            const notes = [];
+            let offsetInDivisions = 0; // current position within the piece, in divisions
+            let prevDivisions = this.divisions;
 
             const measures = part.querySelectorAll('measure');
-            measures.forEach(measure => {
-                const measureStart = currentBeat;
-                let noteOffset = 0;
-                let lastNoteTime = -1;
+            measures.forEach((measure, measureIndex) => {
+                const measureStartInDivisions = offsetInDivisions;
 
+                // Process children in document order
                 Array.from(measure.children).forEach(child => {
-                    if (child.tagName === 'attributes') {
+                    const tag = child.tagName;
+
+                    if (tag === 'attributes') {
                         const divEl = child.querySelector('divisions');
                         if (divEl) {
-                            const newDiv = parseInt(divEl.textContent);
-                            if (!isNaN(newDiv) && newDiv > 0) this.divisions = newDiv;
+                            const d = parseInt(divEl.textContent.trim());
+                            if (!isNaN(d) && d > 0) this.divisions = d;
                         }
                         const beatsEl = child.querySelector('beats');
                         const beatTypeEl = child.querySelector('beat-type');
                         if (beatsEl && beatTypeEl) {
-                            this.timeSignature.numerator = parseInt(beatsEl.textContent);
-                            this.timeSignature.denominator = parseInt(beatTypeEl.textContent);
+                            this.timeSignature.numerator = parseInt(beatsEl.textContent.trim());
+                            this.timeSignature.denominator = parseInt(beatTypeEl.textContent.trim());
                         }
-                    } else if (child.tagName === 'note') {
+                    }
+                    else if (tag === 'direction') {
+                        // Try <per-minute> first, then <sound tempo="">
+                        const pmEl = child.querySelector('per-minute');
+                        if (pmEl) {
+                            const t = parseFloat(pmEl.textContent.trim());
+                            if (!isNaN(t) && t > 0) this.bpm = t;
+                        } else {
+                            const soundEl = child.querySelector('sound[tempo]');
+                            if (soundEl) {
+                                const t = parseFloat(soundEl.getAttribute('tempo'));
+                                if (!isNaN(t) && t > 0) this.bpm = t;
+                            }
+                        }
+                    }
+                    else if (tag === 'note') {
                         const isRest = child.querySelector('rest') !== null;
                         const isChord = child.querySelector('chord') !== null;
 
-                        const durationEl = child.querySelector('duration');
-                        let durationDivisions = durationEl ? parseInt(durationEl.textContent) : 0;
-                        if (isNaN(durationDivisions) || durationDivisions <= 0) {
-                            durationDivisions = this.divisions;
-                        }
-                        const durationBeats = durationDivisions / this.divisions;
+                        const durEl = child.querySelector('duration');
+                        let durDiv = durEl ? parseInt(durEl.textContent.trim()) : 0;
+                        if (isNaN(durDiv) || durDiv <= 0) durDiv = this.divisions;
 
-                        if (!isRest) {
-                            const pitchEl = child.querySelector('pitch');
-                            if (pitchEl) {
-                                const step = pitchEl.querySelector('step')?.textContent || 'C';
-                                const alter = pitchEl.querySelector('alter')?.textContent || '0';
-                                const octave = pitchEl.querySelector('octave')?.textContent || '4';
-                                const midi = this.pitchToMidi(step, parseInt(alter), parseInt(octave));
-                                const name = this.midiToNoteName(midi);
-
-                                let startTimeBeats;
-                                if (isChord && lastNoteTime >= 0) {
-                                    startTimeBeats = lastNoteTime;
-                                } else {
-                                    startTimeBeats = measureStart + noteOffset / this.divisions;
-                                    lastNoteTime = startTimeBeats;
-                                }
-
-                                const ties = child.querySelectorAll('tie');
-                                let tieType = null;
-                                ties.forEach(tie => {
-                                    tieType = tie.getAttribute('type');
-                                });
-
-                                notes.push({
-                                    midi, name,
-                                    startTime: startTimeBeats,
-                                    endTime: startTimeBeats + durationBeats,
-                                    duration: durationBeats,
-                                    velocity: 0.8,
-                                    channel: 0,
-                                    tieType,
-                                    track: partIndex
-                                });
-                            }
+                        // Advance offset for rests too
+                        if (isRest) {
+                            if (!isChord) offsetInDivisions += durDiv;
+                            return;
                         }
 
-                        if (!isChord) {
-                            noteOffset += durationDivisions;
+                        const pitchEl = child.querySelector('pitch');
+                        if (!pitchEl) {
+                            if (!isChord) offsetInDivisions += durDiv;
+                            return;
                         }
-                    } else if (child.tagName === 'backup') {
+
+                        const step = pitchEl.querySelector('step')?.textContent?.trim() || 'C';
+                        const alter = pitchEl.querySelector('alter')?.textContent?.trim() || '0';
+                        const octave = pitchEl.querySelector('octave')?.textContent?.trim() || '4';
+                        const midi = this.pitchToMidi(step, parseInt(alter), parseInt(octave));
+                        const name = this.midiToNoteName(midi);
+
+                        // Start time: use offset for non-chord, reuse last time for chord
+                        let noteStartDiv;
+                        if (isChord && notes.length > 0) {
+                            noteStartDiv = notes[notes.length - 1]._startDiv;
+                        } else {
+                            noteStartDiv = offsetInDivisions;
+                            offsetInDivisions += durDiv;
+                        }
+
+                        // Convert divisions to beats
+                        const startBeats = noteStartDiv / this.divisions;
+                        const durBeats = durDiv / this.divisions;
+
+                        // Tie info
+                        let tieType = null;
+                        child.querySelectorAll('tie').forEach(tie => {
+                            tieType = tie.getAttribute('type');
+                        });
+
+                        notes.push({
+                            midi, name,
+                            startTime: startBeats,
+                            endTime: startBeats + durBeats,
+                            duration: durBeats,
+                            velocity: parseFloat(child.getAttribute('dynamics') || '80') / 127,
+                            channel: 0,
+                            tieType,
+                            track: partIndex,
+                            _startDiv: noteStartDiv // internal, for chord handling
+                        });
+                    }
+                    else if (tag === 'backup') {
                         const durEl = child.querySelector('duration');
                         if (durEl) {
-                            const backup = parseInt(durEl.textContent);
-                            if (!isNaN(backup)) noteOffset = Math.max(0, noteOffset - backup);
+                            const b = parseInt(durEl.textContent.trim());
+                            if (!isNaN(b)) offsetInDivisions = Math.max(measureStartInDivisions, offsetInDivisions - b);
                         }
-                    } else if (child.tagName === 'forward') {
+                    }
+                    else if (tag === 'forward') {
                         const durEl = child.querySelector('duration');
                         if (durEl) {
-                            const fwd = parseInt(durEl.textContent);
-                            if (!isNaN(fwd) && fwd > 0) noteOffset += fwd;
-                        }
-                    } else if (child.tagName === 'direction') {
-                        const tempoEl = child.querySelector('per-minute');
-                        if (tempoEl) {
-                            const tempo = parseFloat(tempoEl.textContent);
-                            if (!isNaN(tempo) && tempo > 0) this.bpm = tempo;
+                            const f = parseInt(durEl.textContent.trim());
+                            if (!isNaN(f) && f > 0) offsetInDivisions += f;
                         }
                     }
                 });
 
-                const measureDurationEl = measure.querySelector('duration');
-                if (measureDurationEl) {
-                    currentBeat += parseInt(measureDurationEl.textContent) / this.divisions;
-                } else {
-                    currentBeat += this.timeSignature.numerator * (4 / this.timeSignature.denominator);
-                }
+                // Measure end: jump to next measure boundary based on time signature
+                const measureLenDiv = this.timeSignature.numerator * this.divisions;
+                offsetInDivisions = measureStartInDivisions + measureLenDiv;
             });
 
             // Merge tied notes
             this.mergeTiedNotes(notes);
 
             // Convert to tiles
-            const noteMap = new Map();
             notes.forEach(note => {
-                const noteKey = `${note.midi}-${note.startTime}`;
-                if (!noteMap.has(noteKey)) {
-                    const tile = this.noteToTile(note, partIndex);
-                    noteMap.set(noteKey, tile);
-                    this.tiles.push(tile);
-                }
+                delete note._startDiv;
+                const tile = this.noteToTile(note, partIndex);
+                this.tiles.push(tile);
             });
 
-            console.log(`Part ${partId}: ${notes.length} notes → tiles`);
+            console.log(`Part ${partIndex}: ${notes.length} notes`);
+            if (notes.length > 0) {
+                console.log('First 5:', notes.slice(0, 5).map(n =>
+                    `${n.name} ${n.startTime.toFixed(2)}-${n.endTime.toFixed(2)} (${n.duration.toFixed(2)})`
+                ));
+            }
         });
     }
 
     parseTimewise(doc) {
-        const measures = doc.querySelectorAll('score-timewise > measure');
+        // Fallback: flatten to partwise-like structure
         const partNotes = {};
+        const measures = doc.querySelectorAll('score-timewise > measure');
 
         measures.forEach(measure => {
-            const parts = measure.querySelectorAll('part');
-            parts.forEach(part => {
-                const partId = part.getAttribute('id');
-                if (!partNotes[partId]) {
-                    partNotes[partId] = [];
-                }
-
-                this.divisions = 4;
-                let noteOffset = 0;
-                let lastNoteTime = -1;
-
-                const noteElements = part.querySelectorAll('note');
-                noteElements.forEach(noteEl => {
-                    const isRest = noteEl.querySelector('rest') !== null;
-                    const isChord = noteEl.querySelector('chord') !== null;
-                    const durationEl = noteEl.querySelector('duration');
-                    let durationDivisions = durationEl ? parseInt(durationEl.textContent) : 0;
-                    if (isNaN(durationDivisions) || durationDivisions <= 0) {
-                        durationDivisions = this.divisions;
-                    }
-                    const durationBeats = durationDivisions / this.divisions;
-
-                    if (isRest) {
-                        if (!isChord) noteOffset += durationDivisions;
-                        return;
-                    }
-
-                    const pitchEl = noteEl.querySelector('pitch');
+            measure.querySelectorAll('part').forEach(part => {
+                const id = part.getAttribute('id');
+                if (!partNotes[id]) partNotes[id] = [];
+                part.querySelectorAll('note').forEach(n => {
+                    const pitchEl = n.querySelector('pitch');
                     if (!pitchEl) return;
-
-                    const step = pitchEl.querySelector('step')?.textContent || 'C';
-                    const alter = pitchEl.querySelector('alter')?.textContent || '0';
-                    const octave = pitchEl.querySelector('octave')?.textContent || '4';
+                    const step = pitchEl.querySelector('step')?.textContent?.trim() || 'C';
+                    const alter = pitchEl.querySelector('alter')?.textContent?.trim() || '0';
+                    const octave = pitchEl.querySelector('octave')?.textContent?.trim() || '4';
+                    const durEl = n.querySelector('duration');
+                    const durDiv = durEl ? parseInt(durEl.textContent.trim()) : this.divisions;
+                    const durBeats = durDiv / this.divisions;
                     const midi = this.pitchToMidi(step, parseInt(alter), parseInt(octave));
-                    const name = this.midiToNoteName(midi);
-
-                    let startTimeBeats;
-                    if (isChord && lastNoteTime >= 0) {
-                        startTimeBeats = lastNoteTime;
-                    } else {
-                        startTimeBeats = noteOffset / this.divisions;
-                        lastNoteTime = startTimeBeats;
-                        noteOffset += durationDivisions;
-                    }
-
-                    const ties = noteEl.querySelectorAll('tie');
                     let tieType = null;
-                    ties.forEach(tie => {
-                        tieType = tie.getAttribute('type');
-                    });
-
-                    partNotes[partId].push({
-                        midi, name,
-                        startTime: startTimeBeats,
-                        endTime: startTimeBeats + durationBeats,
-                        duration: durationBeats,
-                        velocity: 0.8,
-                        channel: 0,
-                        tieType,
-                        track: 0
+                    n.querySelectorAll('tie').forEach(t => tieType = t.getAttribute('type'));
+                    partNotes[id].push({
+                        midi, name: this.midiToNoteName(midi),
+                        startTime: 0, endTime: durBeats, duration: durBeats,
+                        velocity: 0.8, channel: 0, tieType, track: 0
                     });
                 });
             });
         });
 
-        Object.entries(partNotes).forEach(([partId, notes], partIndex) => {
+        Object.entries(partNotes).forEach(([id, notes], idx) => {
             this.mergeTiedNotes(notes);
-            const noteMap = new Map();
-            notes.forEach(note => {
-                const noteKey = `${note.midi}-${note.startTime}`;
-                if (!noteMap.has(noteKey)) {
-                    const tile = this.noteToTile(note, partIndex);
-                    noteMap.set(noteKey, tile);
-                    this.tiles.push(tile);
-                }
+            // Reconstruct proper start times
+            let offset = 0;
+            notes.forEach(n => {
+                n.startTime = offset;
+                n.endTime = offset + n.duration;
+                offset += n.duration;
+                delete n.tieType;
+                this.tiles.push(this.noteToTile(n, idx));
             });
         });
     }
@@ -290,16 +255,13 @@ class MusicXmlParser {
             startTime: note.startTime,
             endTime: note.startTime + displayDuration,
             duration: displayDuration,
-            velocity: note.velocity,
+            velocity: note.velocity || 0.8,
             track: trackIndex,
             hit: false,
             missed: false,
             accumulatedHoldTime: 0,
             isBeingHeld: false,
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
+            x: 0, y: 0, width: 0, height: 0,
             originalDuration: note.duration,
             hitWindowOffset: 0,
             sustainRequired: true
@@ -308,46 +270,36 @@ class MusicXmlParser {
 
     mergeTiedNotes(notes) {
         notes.sort((a, b) => a.startTime - b.startTime || a.midi - b.midi);
-
-        let i = 0;
-        let merged = 0;
+        let i = 0, merged = 0;
 
         while (i < notes.length - 1) {
-            const current = notes[i];
-            const next = notes[i + 1];
-
-            const samePitch = current.midi === next.midi;
-            const isTied = current.tieType === 'start' && next.tieType === 'stop';
-            const gap = next.startTime - current.endTime;
+            const cur = notes[i], nxt = notes[i + 1];
+            const samePitch = cur.midi === nxt.midi;
+            const isTied = cur.tieType === 'start' && nxt.tieType === 'stop';
+            const gap = nxt.startTime - cur.endTime;
 
             if (samePitch && (isTied || Math.abs(gap) < 0.001)) {
-                current.endTime = Math.max(current.endTime, next.endTime);
-                current.duration = current.endTime - current.startTime;
-                current.tieType = next.tieType === 'stop' ? null : next.tieType;
-                current.velocity = Math.max(current.velocity, next.velocity);
+                cur.endTime = Math.max(cur.endTime, nxt.endTime);
+                cur.duration = cur.endTime - cur.startTime;
+                cur.tieType = nxt.tieType === 'stop' ? null : nxt.tieType;
+                cur.velocity = Math.max(cur.velocity, nxt.velocity);
                 notes.splice(i + 1, 1);
                 merged++;
             } else {
                 i++;
             }
         }
-
         notes.forEach(n => delete n.tieType);
-
-        if (merged > 0) {
-            console.log(`Merged ${merged} tied notes, ${notes.length} remaining`);
-        }
+        if (merged > 0) console.log(`Merged ${merged} ties, ${notes.length} notes remain`);
     }
 
     pitchToMidi(step, alter, octave) {
-        const stepToSemitone = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-        const semitone = stepToSemitone[step] || 0;
-        return (octave + 1) * 12 + semitone + (alter || 0);
+        const map = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+        return (parseInt(octave) + 1) * 12 + (map[step] || 0) + (parseInt(alter) || 0);
     }
 
     midiToNoteName(midi) {
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const octave = Math.floor(midi / 12) - 1;
-        return noteNames[midi % 12] + octave;
+        const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        return names[midi % 12] + (Math.floor(midi / 12) - 1);
     }
 }
