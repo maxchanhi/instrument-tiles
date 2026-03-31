@@ -126,7 +126,11 @@ class MusicXmlParser {
                         const alter = pitchEl.querySelector('alter')?.textContent?.trim() || '0';
                         const octave = pitchEl.querySelector('octave')?.textContent?.trim() || '4';
                         const midi = this.pitchToMidi(step, parseInt(alter), parseInt(octave));
-                        const name = this.midiToNoteName(midi);
+
+                        // Use <accidental> for display name if present (e.g. flat → Bb not A#)
+                        const accidentalEl = child.querySelector('accidental');
+                        const accidental = accidentalEl?.textContent?.trim();
+                        const name = this.pitchToName(step, parseInt(alter), parseInt(octave), accidental);
 
                         // Start time: use offset for non-chord, reuse last time for chord
                         let noteStartDiv;
@@ -296,6 +300,26 @@ class MusicXmlParser {
     pitchToMidi(step, alter, octave) {
         const map = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
         return (parseInt(octave) + 1) * 12 + (map[step] || 0) + (parseInt(alter) || 0);
+    }
+
+    // Convert pitch to display name, using MusicXML accidental if present
+    pitchToName(step, alter, octave, accidental) {
+        if (accidental === 'flat' || (alter < 0 && !accidental)) {
+            return step + 'b' + octave;
+        }
+        if (accidental === 'sharp' || alter > 0) {
+            return step + '#' + octave;
+        }
+        if (accidental === 'natural') {
+            return step + octave;
+        }
+        if (accidental === 'double-flat') {
+            return step + 'bb' + octave;
+        }
+        if (accidental === 'double-sharp') {
+            return step + 'x' + octave;
+        }
+        return step + octave;
     }
 
     midiToNoteName(midi) {
