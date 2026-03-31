@@ -276,9 +276,9 @@ class MusicXmlParser {
             const cur = notes[i], nxt = notes[i + 1];
             const samePitch = cur.midi === nxt.midi;
             const isTied = cur.tieType === 'start' && nxt.tieType === 'stop';
-            const gap = nxt.startTime - cur.endTime;
 
-            if (samePitch && (isTied || Math.abs(gap) < 0.001)) {
+            // Only merge if explicit tie markers present (MusicXML is explicit about ties)
+            if (samePitch && isTied) {
                 cur.endTime = Math.max(cur.endTime, nxt.endTime);
                 cur.duration = cur.endTime - cur.startTime;
                 cur.tieType = nxt.tieType === 'stop' ? null : nxt.tieType;
