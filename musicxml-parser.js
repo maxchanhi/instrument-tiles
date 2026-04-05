@@ -180,7 +180,8 @@ class MusicXmlParser {
                 });
 
                 // Measure end: jump to next measure boundary based on time signature
-                const measureLenDiv = this.timeSignature.numerator * this.divisions;
+                // divisions = divisions per quarter note, so we need to scale by denominator
+                const measureLenDiv = (this.timeSignature.numerator / this.timeSignature.denominator) * 4 * this.divisions;
                 offsetInDivisions = measureStartInDivisions + measureLenDiv;
             });
 
