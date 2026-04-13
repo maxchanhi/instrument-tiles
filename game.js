@@ -125,6 +125,7 @@ class InstrumentTilesGame {
         this.setupEventListeners();
         this.render();
         this.loadDefaultMidi();
+        this.initLibrary(); // Load built-in library songs
         this.displayLeaderboard(); // Load and display leaderboard
         
     }
@@ -495,33 +496,48 @@ class InstrumentTilesGame {
         this.updateStatus('Loading default MIDI file...');
 
         try {
-            const response = await fetch('midi/OffSheGoes.mid');
+            // Load Banana Boat in C as default
+            const response = await fetch('midi/BananaBoat_inC.musicxml');
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
-            const arrayBuffer = await response.arrayBuffer();
-            console.log('Default MIDI loaded:', arrayBuffer.byteLength, 'bytes');
-
-            this.midiData = new SimpleMidiParser(arrayBuffer);
-            console.log('Default MIDI parsed successfully:', this.midiData);
-
-            // Set playback speed based on MIDI BPM (BPM / 60 = beats per second)
-            if (this.midiData.bpm) {
-                this.speed = this.midiData.bpm / 60;
-                console.log(`Playback speed set to: ${this.speed.toFixed(2)} beats/sec (BPM: ${this.midiData.bpm.toFixed(1)})`);
-            }
-
-            // Apply time signature from MIDI (also updates BPM display for compound time)
-            this.applyTimeSignature();
-            
-            this.parseMidiData();
+            const text = await response.text();
+            this.processMidiBuffer(text, 'BananaBoat_inC.musicxml', 'musicxml');
             this.updateStatus(`Default song loaded! Total ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
             this.enableControls();
             this.render();
         } catch (error) {
             console.error('Default MIDI load failed:', error);
             this.updateStatus('Please select a MIDI from the Library to start the game');
+        }
+    }
+
+    /**
+     * Load built-in library songs from the midi folder
+     */
+    async initLibrary() {
+        const librarySongs = [
+            { name: 'BananaBoat_inC.musicxml', displayName: 'Banana Boat in C' },
+            { name: 'Minuet_Handel.musicxml', displayName: 'Minuet (Handel)' },
+            { name: 'Off She Goes.musicxml', displayName: 'Off She Goes' },
+            { name: 'StAnthonyChorale.musicxml', displayName: 'St. Anthony Chorale' },
+            { name: 'Thistle Fairy.musicxml', displayName: 'Thistle Fairy' }
+        ];
+
+        const list = document.getElementById('custom-midi-list');
+        if (!list) return;
+
+        for (const song of librarySongs) {
+            try {
+                const response = await fetch(`midi/${song.name}`);
+                if (!response.ok) continue;
+                
+                const text = await response.text();
+                this.addCustomMidiToDrawer(song.displayName, text, 'musicxml');
+            } catch (error) {
+                console.warn(`Failed to load library song: ${song.name}`, error);
+            }
         }
     }
 
