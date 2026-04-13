@@ -130,6 +130,153 @@ class PitchDetector {
         };
     }
 
+    /**
+     * Detect multiple pitches simultaneously
+     * @param {number} maxPitches - Maximum number of pitches to return (default 2)
+     * @returns {Array} Array of detected pitch objects
+     */
+    detectMultiplePitches(maxPitches = 2) {
+        if (!this.isListening || !this.analyser) return [];
+
+        this.analyser.getFloatTimeDomainData(this.dataArray);
+
+        // Calculate RMS for noise filtering
+        let rms = 0;
+        for (let i = 0; i < this.dataArray.length; i++) {
+            rms += this.dataArray[i] * this.dataArray[i];
+        }
+        rms = Math.sqrt(rms / this.dataArray.length);
+
+        if (rms < this.rmsThreshold) {
+            return [];
+        }
+
+        // Get FFT data for spectrum analysis
+        const fftSize = this.analyser.fftSize;
+        const frequencyResolution = this.audioContext.sampleRate / fftSize;
+        const fftData = new Float32Array(fftSize / 2);
+        this.analyser.getFloatFrequencyData(fftData);
+
+        // Find peaks in FFT spectrum
+        const peaks = this.findSpectrumPeaks(fftData, frequencyResolution);
+
+        // Validate peaks using autocorrelation to confirm fundamental frequencies
+        const validPitches = [];
+        const minFrequencySeparation = 100; // Minimum 100Hz between detected notes
+
+        for (const peak of peaks) {
+            if (validPitches.length >= maxPitches) break;
+
+            // Skip if outside our frequency range
+            if (peak.frequency < this.minFrequency || peak.frequency > this.maxFrequency) {
+                continue;
+            }
+
+            // Check minimum frequency separation from already accepted pitches
+            let tooClose = false;
+            for (const accepted of validPitches) {
+                if (Math.abs(accepted.frequency - peak.frequency) < minFrequencySeparation) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            if (tooClose) continue;
+
+            // Confirm it's a fundamental frequency (not a harmonic)
+            // Lower threshold to allow for interference between simultaneous notes
+            const isFundamental = this.confirmFundamental(peak.frequency, 0.15);
+            if (isFundamental) {
+                const midi = this.frequencyToMidi(peak.frequency);
+                const noteName = this.midiToNoteName(midi);
+                validPitches.push({
+                    frequency: peak.frequency,
+                    midi: midi,
+                    noteName: noteName,
+                    confidence: peak.magnitude / 255
+                });
+            }
+        }
+
+        // Update current pitch info (use primary pitch)
+        if (validPitches.length > 0) {
+            this.currentPitch = validPitches[0].frequency;
+            this.currentMidi = validPitches[0].midi;
+            this.currentNoteName = validPitches[0].noteName;
+        } else {
+            this.currentPitch = null;
+            this.currentMidi = null;
+            this.currentNoteName = null;
+        }
+
+        return validPitches;
+    }
+
+    /**
+     * Find peaks in FFT spectrum
+     */
+    findSpectrumPeaks(fftData, frequencyResolution) {
+        const peaks = [];
+        const minBinDistance = 10;
+
+        // Find local maxima in the spectrum
+        for (let i = 2; i < fftData.length - 2; i++) {
+            if (fftData[i] < fftData[i - 1] || fftData[i] < fftData[i + 1]) continue;
+            if (fftData[i] < fftData[i - 2] || fftData[i] < fftData[i + 2]) continue;
+
+            // Lower threshold to catch quieter notes
+            if (fftData[i] < -70) continue;
+
+            // Check minimum distance from other peaks
+            const frequency = i * frequencyResolution;
+            let tooClose = false;
+            for (const existingPeak of peaks) {
+                if (Math.abs(existingPeak.frequency - frequency) < 50) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            if (tooClose) continue;
+
+            peaks.push({
+                bin: i,
+                frequency: frequency,
+                magnitude: fftData[i]
+            });
+        }
+
+        // Sort by magnitude (strongest first)
+        peaks.sort((a, b) => b.magnitude - a.magnitude);
+
+        return peaks.slice(0, 5);
+    }
+
+    /**
+     * Confirm a frequency is fundamental (not a harmonic)
+     */
+    confirmFundamental(frequency, threshold = 0.15) {
+        // Use autocorrelation to check for periodicity at this frequency
+        const period = Math.round(this.audioContext.sampleRate / frequency);
+        if (period <= 0 || period >= this.dataArray.length / 2) return false;
+
+        // Check correlation at expected period
+        let correlation = 0;
+        let energy1 = 0;
+        let energy2 = 0;
+
+        const maxLag = Math.min(period + 10, this.dataArray.length - period);
+        for (let i = 0; i < maxLag; i++) {
+            correlation += this.dataArray[i] * this.dataArray[i + period];
+            energy1 += this.dataArray[i] * this.dataArray[i];
+            energy2 += this.dataArray[i + period] * this.dataArray[i + period];
+        }
+
+        if (energy1 === 0 || energy2 === 0) return false;
+
+        const normalizedCorrelation = correlation / Math.sqrt(energy1 * energy2);
+
+        return normalizedCorrelation > threshold;
+    }
+
     stop() {
         if (this.mediaStream) {
             this.mediaStream.getTracks().forEach(track => track.stop());

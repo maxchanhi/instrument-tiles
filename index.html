@@ -72,6 +72,9 @@
                 <div class="pitch-display">
                     <h3>Detected Pitch</h3>
                     <p id="current-pitch">--</p>
+                    <p id="current-pitch-2">--</p>
+                    <p id="current-pitch-3">--</p>
+                    <p id="current-pitch-4">--</p>
                 </div>
             </div>
 
@@ -99,6 +102,16 @@
                 <div class="control-group">
                     <label for="tuning-offset">Tuning Offset: <span id="tuning-offset-value">0</span> cents</label>
                     <input type="range" id="tuning-offset" min="-100" max="100" step="1" value="0">
+                </div>
+
+                <div class="control-group">
+                    <label for="max-notes-detect">Max Notes: <span id="max-notes-value">2</span></label>
+                    <input type="range" id="max-notes-detect" min="1" max="4" step="1" value="2">
+                </div>
+
+                <div class="control-group">
+                    <label for="practice-excerpt-percent">Practice Excerpt: <span id="practice-excerpt-value">10</span>%</label>
+                    <input type="range" id="practice-excerpt-percent" min="5" max="20" step="1" value="10">
                 </div>
             </div>
 
@@ -160,6 +173,7 @@
 
             <div class="practice-actions">
                 <button id="practice-generate-btn" disabled>Generate Exercise</button>
+                <button id="practice-excerpt-btn" disabled>Generate from Misses</button>
                 <button id="practice-exit-btn" style="display: none;">Exit Practice</button>
                 <span id="practice-loop-info" class="practice-loop-info"></span>
             </div>
