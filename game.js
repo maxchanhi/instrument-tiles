@@ -496,14 +496,14 @@ class InstrumentTilesGame {
         this.updateStatus('Loading default MIDI file...');
 
         try {
-            // Load Banana Boat in C as default
-            const response = await fetch('midi/BananaBoat_inC.musicxml');
+            // Load Minuet (Handel) as default
+            const response = await fetch('midi/Minuet_Handel.musicxml');
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
             const text = await response.text();
-            this.processMidiBuffer(text, 'BananaBoat_inC.musicxml', 'musicxml');
+            this.processMidiBuffer(text, 'Minuet_Handel.musicxml', 'musicxml');
             this.updateStatus(`Default song loaded! Total ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
             this.enableControls();
             this.render();
@@ -518,11 +518,7 @@ class InstrumentTilesGame {
      */
     async initLibrary() {
         const librarySongs = [
-            { name: 'BananaBoat_inC.musicxml', displayName: 'Banana Boat in C' },
-            { name: 'Minuet_Handel.musicxml', displayName: 'Minuet (Handel)' },
-            { name: 'Off She Goes.musicxml', displayName: 'Off She Goes' },
-            { name: 'StAnthonyChorale.musicxml', displayName: 'St. Anthony Chorale' },
-            { name: 'Thistle Fairy.musicxml', displayName: 'Thistle Fairy' }
+            { name: 'Minuet_Handel.musicxml', displayName: 'Minuet (Handel)' }
         ];
 
         const list = document.getElementById('custom-midi-list');
