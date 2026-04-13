@@ -124,9 +124,10 @@ class InstrumentTilesGame {
         window.addEventListener('orientationchange', debouncedResize);
         this.setupEventListeners();
         this.render();
-        this.loadDefaultMidi();
-        this.initLibrary(); // Load built-in library songs
-        this.displayLeaderboard(); // Load and display leaderboard
+        this.loadDefaultMidi().then(() => {
+            this.initLibrary(); // Load built-in library songs after default MIDI loads
+            this.displayLeaderboard();
+        });
         
     }
 
@@ -516,7 +517,8 @@ class InstrumentTilesGame {
     /**
      * Load built-in library songs from the midi folder
      */
-    async initLibrary() {
+    initLibrary() {
+        console.log('initLibrary called');
         const librarySongs = [
             { name: 'BananaBoat_inC.musicxml', displayName: 'Banana Boat in C' },
             { name: 'Minuet_Handel.musicxml', displayName: 'Minuet (Handel)' },
@@ -526,19 +528,37 @@ class InstrumentTilesGame {
         ];
 
         const list = document.getElementById('custom-midi-list');
-        if (!list) return;
-
-        for (const song of librarySongs) {
-            try {
-                const response = await fetch(`midi/${song.name}`);
-                if (!response.ok) continue;
-                
-                const text = await response.text();
-                this.addCustomMidiToDrawer(song.displayName, text, 'musicxml');
-            } catch (error) {
-                console.warn(`Failed to load library song: ${song.name}`, error);
-            }
+        console.log('custom-midi-list element:', list);
+        if (!list) {
+            console.warn('custom-midi-list not found');
+            return;
         }
+
+        // Load songs sequentially
+        this.loadLibrarySongs(librarySongs, 0);
+    }
+
+    async loadLibrarySongs(songs, index) {
+        if (index >= songs.length) return;
+        
+        const song = songs[index];
+        try {
+            const response = await fetch(`midi/${song.name}`);
+            if (!response.ok) {
+                console.warn(`Failed to fetch: ${song.name}, status: ${response.status}`);
+                this.loadLibrarySongs(songs, index + 1);
+                return;
+            }
+            
+            const text = await response.text();
+            this.addCustomMidiToDrawer(song.displayName, text, 'musicxml');
+            console.log(`Loaded library song: ${song.displayName}`);
+        } catch (error) {
+            console.warn(`Failed to load library song: ${song.name}`, error);
+        }
+        
+        // Load next song
+        this.loadLibrarySongs(songs, index + 1);
     }
 
     parseMidiData() {
