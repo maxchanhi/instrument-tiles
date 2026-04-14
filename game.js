@@ -101,8 +101,10 @@ class InstrumentTilesGame {
         this.practiceAttemptCount = 0; // How many times we've practiced this section
         this.practiceMeasureStart = 0; // Start beat of the measure to practice
         this.practiceMeasureEnd = 0; // End beat of the measure to practice
+        this.practiceMeasureNumber = 0; // Measure number for visual cue display
         this.practiceTargetNotes = []; // Notes in the measure to practice
         this.practiceHiddenNotes = []; // Notes hidden before practice measure
+        this.practiceTruncatedNotes = []; // Notes that were truncated (tie-broken) for practice
         this.practiceNotesAchieved = false; // Whether all target notes reached at least "ok"
 
         // Practice mode state
@@ -351,8 +353,13 @@ class InstrumentTilesGame {
         document.getElementById('preview-btn').addEventListener('click', () => this.previewNotes());
 
         // Game control buttons
-        document.getElementById('play-btn').addEventListener('click', () => this.play());
-        document.getElementById('pause-btn').addEventListener('click', () => this.pause());
+        document.getElementById('play-btn').addEventListener('click', () => {
+            if (this.isPlaying && !this.isPaused) {
+                this.pause();
+            } else {
+                this.play();
+            }
+        });
         document.getElementById('reset-btn').addEventListener('click', () => this.reset());
         
         // Leaderboard clear button
@@ -623,7 +630,8 @@ class InstrumentTilesGame {
                         height: 0,
                         originalDuration: note.duration, // Save original duration
                         hitWindowOffset: 0, // Judgment window offset
-                        sustainRequired: true // Require sustained hit for perfect
+                        sustainRequired: true, // Require sustained hit for perfect
+                        measureNumber: 0 // Will be set after measures are calculated
                     };
                     noteMap.set(noteKey, noteObj);
                     this.notes.push(noteObj);
@@ -651,6 +659,23 @@ class InstrumentTilesGame {
 
         // Sort by start time
         this.notes.sort((a, b) => a.startTime - b.startTime);
+
+        // Generate measure boundaries if not provided by MIDI parser
+        if (!this.midiData.measures || this.midiData.measures.length === 0) {
+            this.generateMeasures();
+        }
+
+        // Assign measureNumber to each note
+        this.notes.forEach(note => {
+            if (!note.measureNumber || note.measureNumber === 0) {
+                for (let i = this.measures.length - 1; i >= 0; i--) {
+                    if (note.startTime >= this.measures[i].startBeat) {
+                        note.measureNumber = this.measures[i].number;
+                        break;
+                    }
+                }
+            }
+        });
 
         // Calculate note positions on tracks (adjust based on unique pitch count)
         this.calculateNotePositions();
@@ -724,6 +749,27 @@ class InstrumentTilesGame {
         }
         
         console.log(`Global cooldown: ${this.currentCooldown.toFixed(0)}ms`);
+    }
+
+    generateMeasures() {
+        const beatsPerMeasure = this.beatsPerBar;
+        const beatUnit = this.metronomeBeatUnit;
+        const measureLength = beatsPerMeasure * beatUnit;
+        const measures = [];
+        let measureStart = 0;
+        let measureNum = 1;
+        const songEnd = this.songLength + measureLength;
+        while (measureStart < songEnd) {
+            measures.push({
+                number: measureNum,
+                startBeat: measureStart,
+                endBeat: measureStart + measureLength
+            });
+            measureStart += measureLength;
+            measureNum++;
+        }
+        this.measures = measures;
+        console.log(`Generated ${measures.length} measures`);
     }
 
     calculateNotePositions() {
@@ -889,8 +935,8 @@ class InstrumentTilesGame {
                 const currentAdjustedTime = (this.audioContext.currentTime - this.startTime) * this.speed;
                 this.metronomeNextBeat = Math.ceil(currentAdjustedTime / this.metronomeBeatUnit) * this.metronomeBeatUnit;
             }
-            document.getElementById('play-btn').disabled = true;
-            document.getElementById('pause-btn').disabled = false;
+            document.getElementById('play-btn').textContent = '⏸ Pause';
+            document.getElementById('play-btn').disabled = false;
             this.updateStatus('Game in progress...');
             if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
             this.gameLoop();
@@ -950,7 +996,7 @@ class InstrumentTilesGame {
             this.updateStatus('Count-in...');
 
             document.getElementById('play-btn').disabled = true;
-            document.getElementById('pause-btn').disabled = true;
+            document.getElementById('play-btn').textContent = '⏸ Pause';
 
             if (this.countInTimer) {
                 clearTimeout(this.countInTimer);
@@ -960,8 +1006,8 @@ class InstrumentTilesGame {
                 this.isPlaying = true;
                 this.isPaused = false;
                 this.metronomeRunning = this.metronomeEnabled;
-                document.getElementById('play-btn').disabled = true;
-                document.getElementById('pause-btn').disabled = false;
+                document.getElementById('play-btn').textContent = '⏸ Pause';
+                document.getElementById('play-btn').disabled = false;
                 this.updateStatus('Game in progress...');
                 if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
                 this.gameLoop();
@@ -976,8 +1022,8 @@ class InstrumentTilesGame {
         this.pauseTime = this.audioContext.currentTime - this.startTime;
         this.metronomeRunning = false;
         
+        document.getElementById('play-btn').textContent = '▶ Resume';
         document.getElementById('play-btn').disabled = false;
-        document.getElementById('pause-btn').disabled = true;
         
         this.updateStatus('Game paused');
         if (typeof musicNav !== 'undefined' && musicNav) musicNav.refresh();
@@ -1064,6 +1110,31 @@ class InstrumentTilesGame {
             this.exitPracticeMode();
         }
 
+        // Restore truncated notes if in stop-practice mode
+        if (this.practiceTruncatedNotes && this.practiceTruncatedNotes.length > 0) {
+            this.practiceTruncatedNotes.forEach(entry => {
+                const note = entry.note;
+                note.startTime = entry.originalStartTime;
+                note.endTime = entry.originalEndTime;
+                note.duration = entry.originalDuration;
+            });
+            this.practiceTruncatedNotes = [];
+        }
+        // Restore hidden notes
+        if (this.practiceHiddenNotes && this.practiceHiddenNotes.length > 0) {
+            this.practiceHiddenNotes.forEach(note => {
+                if (note._practiceHiddenOriginalHit !== undefined) {
+                    note.hit = note._practiceHiddenOriginalHit;
+                    delete note._practiceHiddenOriginalHit;
+                }
+                if (note._practiceHiddenOriginalMissed !== undefined) {
+                    note.missed = note._practiceHiddenOriginalMissed;
+                    delete note._practiceHiddenOriginalMissed;
+                }
+            });
+            this.practiceHiddenNotes = [];
+        }
+
         // Reset cooldown
         this.currentCooldown = 200;
 
@@ -1076,7 +1147,7 @@ class InstrumentTilesGame {
         previewBtn.textContent = '🎵 Preview Pitch';
 
         document.getElementById('play-btn').disabled = !this.midiData;
-        document.getElementById('pause-btn').disabled = true;
+        document.getElementById('play-btn').textContent = this.midiData ? '▶ Start Game' : '▶ Start Game';
 
         this.updateStatus(this.midiData ? 'Reset, click Start Game' : 'Please select a MIDI from the Library to start');
         
@@ -1648,8 +1719,9 @@ class InstrumentTilesGame {
             return;
         }
 
-        // Stop metronome immediately
+        // Stop metronome immediately and stop game loop
         this.metronomeRunning = false;
+        this.isPlaying = false;
 
         // Find the measure of the missed note
         const measureNumber = missedNote.measureNumber || 1;
@@ -1676,6 +1748,7 @@ class InstrumentTilesGame {
         this.practiceMeasureEnd = this.measures[targetMeasureIndex + 1]
             ? this.measures[targetMeasureIndex + 1].endBeat
             : targetMeasure.endBeat + targetMeasure.endBeat - targetMeasure.startBeat;
+        this.practiceMeasureNumber = targetMeasure.number;
 
         // Get all notes in this measure range (including one note after the measure)
         this.practiceTargetNotes = this.notes.filter(note =>
@@ -1692,25 +1765,54 @@ class InstrumentTilesGame {
             this.practiceTargetNotes.push(nextMeasureNotes[0]);
         }
 
+        // Handle tied/crossing notes: notes that start before practice measure but end during/after it
+        // Break the tie and truncate them to start at the practice measure boundary
+        this.practiceTruncatedNotes = [];
+        this.notes.forEach(note => {
+            if (note.startTime < this.practiceMeasureStart && note.endTime > this.practiceMeasureStart) {
+                // This note crosses the practice boundary — truncate it
+                this.practiceTruncatedNotes.push({
+                    note: note,
+                    originalStartTime: note.startTime,
+                    originalEndTime: note.endTime,
+                    originalDuration: note.duration
+                });
+                // Truncate: start at the practice measure boundary, keep the remaining duration
+                const remainingDuration = note.endTime - this.practiceMeasureStart;
+                note.startTime = this.practiceMeasureStart;
+                note.duration = remainingDuration;
+                note.endTime = this.practiceMeasureStart + remainingDuration;
+                // Add to target notes since it now starts in the practice measure
+                if (!this.practiceTargetNotes.includes(note)) {
+                    this.practiceTargetNotes.push(note);
+                }
+            }
+        });
+
         console.log(`Practicing measure ${targetMeasure.number}: ${this.practiceMeasureStart.toFixed(2)} - ${this.practiceMeasureEnd.toFixed(2)} beats`);
         console.log(`Target notes: ${this.practiceTargetNotes.length}`);
 
-        // Hide tiles before the practice measure (but track them for restoration)
+        // Hide tiles before the practice measure so the player knows where to start
         this.practiceHiddenNotes = [];
         this.notes.forEach(note => {
-            if (note.startTime < this.practiceMeasureStart && !note.hit && !note.missed) {
+            // Hide tiles before the practice start (and not already in target notes)
+            if (note.startTime < this.practiceMeasureStart && !this.practiceTargetNotes.includes(note)) {
                 this.practiceHiddenNotes.push(note);
-                note.hit = true; // Mark as hit so they won't show
+                note._practiceHiddenOriginalHit = note.hit;
+                note._practiceHiddenOriginalMissed = note.missed;
+                note.hit = true;
                 note.missed = false;
             }
+            // Note: do NOT hide tiles after the practice section
         });
 
         // Reset attempt counter
         this.practiceAttemptCount = 0;
         this.practiceNotesAchieved = false;
 
-        // Pause the game
-        this.pause();
+        // Pause the game (stop game loop, keep audio context)
+        this.isPaused = true;
+        this.pauseTime = this.audioContext.currentTime - this.startTime;
 
         // Show visual cue - big flash on screen
         this.showStopPracticeCue(targetMeasure.number);
@@ -1813,27 +1915,61 @@ class InstrumentTilesGame {
 
         console.log(`Seeking to practice position: prepBeat=${prepBeatTime.toFixed(2)}, measureStart=${this.practiceMeasureStart.toFixed(2)}, measureEnd=${this.practiceMeasureEnd.toFixed(2)}`);
 
-        // Reset notes for the practice section
-        this.resetNotesInRange(this.practiceMeasureStart, this.practiceMeasureEnd + 5);
+        // Remove visual cue overlay if exists
+        const existingOverlay = document.getElementById('stop-practice-overlay');
+        if (existingOverlay && existingOverlay.parentNode) {
+            existingOverlay.parentNode.removeChild(existingOverlay);
+        }
 
-        // Directly set the start time and reset state
+        // Stop metronome and game loop first to avoid overlapping
+        this.metronomeRunning = false;
+        this.isPlaying = false;
+        this.isPaused = false;
+
+        // Re-hide notes that were previously tracked as hidden (don't rebuild the list)
+        this.practiceHiddenNotes.forEach(note => {
+            note.hit = true;
+            note.missed = false;
+        });
+
+        // Reset notes in the practice section (including prep beats area) so they can be played again
+        this.resetNotesInRange(prepBeatTime, this.practiceMeasureEnd + 5);
+
+        // Also reset any notes in practice target that may have been finalized
+        this.practiceTargetNotes.forEach(note => {
+            note.hit = false;
+            note.missed = false;
+            note.accumulatedHoldTime = 0;
+            note.isBeingHeld = false;
+            note.lastHoldUpdate = null;
+        });
+
+        // Directly set the start time so current position = prepBeatTime
         this.startTime = this.audioContext.currentTime - (prepBeatTime / this.speed);
         this.currentTime = prepBeatTime;
         this.isPaused = false;
         this.isPlaying = true;
 
-        // Re-sync metronome to the new position
+        // Re-sync metronome to start from the prep position
         this.initializeMetronomeClock(prepBeatTime);
-        this.metronomeRunning = this.metronomeEnabled;
+        this.metronomeRunning = false; // Don't start metronome yet - play count-in first
 
         // Reset consecutive misses for fresh attempt
         this.consecutiveMisses = 0;
 
-        // Reset notes before prep position
-        this.resetNotesAfter(prepBeatTime);
+        // Ensure hidden notes stay hidden after range resets
+        this.practiceHiddenNotes.forEach(note => {
+            if (note._practiceHiddenOriginalHit !== undefined) {
+                note.hit = true;
+                note.missed = false;
+            }
+        });
 
         this.practiceAttemptCount++;
         this.updateStatus(`Practice attempt #${this.practiceAttemptCount}. Get ready!`);
+
+        // Play 2 prep beat count-in clicks, then start metronome
+        this.playPracticeCountIn(prepBeatTime, prepBeats);
 
         // Update play button
         const playBtn = document.getElementById('play-btn');
@@ -1844,6 +1980,23 @@ class InstrumentTilesGame {
 
         // Start the game loop!
         requestAnimationFrame(() => this.gameLoop());
+    }
+
+    playPracticeCountIn(prepBeatTime, prepBeats) {
+        // Schedule count-in clicks for the 2 prep beats
+        for (let i = 0; i < prepBeats; i++) {
+            const clickBeat = prepBeatTime + i * this.metronomeBeatUnit;
+            const audioTime = this.startTime + (clickBeat / this.speed);
+            const accent = (i === 0); // Accent the first prep beat
+            if (audioTime >= this.audioContext.currentTime) {
+                this.playMetronomeClick(audioTime, accent);
+            }
+        }
+        // Calculate time until prep beats finish then enable regular metronome
+        const prepDuration = prepBeats * this.metronomeBeatUnit / this.speed;
+        setTimeout(() => {
+            this.metronomeRunning = this.metronomeEnabled;
+        }, prepDuration * 1000);
     }
 
     /**
@@ -1857,8 +2010,9 @@ class InstrumentTilesGame {
             return false;
         }
 
-        // Check if we've passed the practice measure end
-        if (this.currentTime < this.practiceMeasureEnd) return false;
+        // Check if we've passed the last target note's end time
+        const lastTargetEnd = Math.max(...this.practiceTargetNotes.map(n => n.endTime));
+        if (this.currentTime < lastTargetEnd) return false;
 
         // Prevent multiple re-entries
         if (this._isCheckingPractice) return false;
@@ -1880,18 +2034,38 @@ class InstrumentTilesGame {
             this.practiceNotesAchieved = true;
             this.updateStatus(`Great! Measure complete. Continuing...`);
 
-            // Restore hidden notes from before the practice measure
+            // Restore hidden notes from before and after the practice measure
             this.practiceHiddenNotes.forEach(note => {
-                note.hit = false;
-                note.missed = false;
+                if (note._practiceHiddenOriginalHit !== undefined) {
+                    note.hit = note._practiceHiddenOriginalHit;
+                    delete note._practiceHiddenOriginalHit;
+                } else {
+                    note.hit = false;
+                }
+                if (note._practiceHiddenOriginalMissed !== undefined) {
+                    note.missed = note._practiceHiddenOriginalMissed;
+                    delete note._practiceHiddenOriginalMissed;
+                } else {
+                    note.missed = false;
+                }
+            });
+
+            // Restore truncated (tie-broken) notes to original timing
+            this.practiceTruncatedNotes.forEach(entry => {
+                const note = entry.note;
+                note.startTime = entry.originalStartTime;
+                note.endTime = entry.originalEndTime;
+                note.duration = entry.originalDuration;
             });
 
             // Reset practice state and continue normal playback
             this.consecutiveMisses = 0;
             this.practiceTargetNotes = [];
             this.practiceHiddenNotes = [];
+            this.practiceTruncatedNotes = [];
             this.practiceMeasureStart = 0;
             this.practiceMeasureEnd = 0;
+            this.practiceMeasureNumber = 0;
             return true;
         } else {
             // Not all notes achieved, loop again to the SAME position
@@ -1899,10 +2073,18 @@ class InstrumentTilesGame {
             console.log(`Practice incomplete. Failed notes: ${failedNotes.map(n => n.name).join(', ')}`);
             this.updateStatus(`Not quite there. Trying again (attempt #${this.practiceAttemptCount + 1})...`);
             
-            // Small delay before restarting to give visual feedback
+            // Stop game loop and metronome before restarting
+            this.isPlaying = false;
+            this.isPaused = true;
+            this.metronomeRunning = false;
+            
+            // Show visual cue again before restarting
+            this.showStopPracticeCue(this.practiceMeasureNumber);
+            
+            // Delay before restarting to give visual feedback
             setTimeout(() => {
                 this.seekToPracticePosition();
-            }, 500);
+            }, 2000);
             return false;
         }
     }
@@ -2642,7 +2824,7 @@ class InstrumentTilesGame {
         this.metronomeRunning = false;
         
         document.getElementById('play-btn').disabled = false;
-        document.getElementById('pause-btn').disabled = true;
+        document.getElementById('play-btn').textContent = '▶ Start Game';
 
         // Update practice panel with latest stats
         this.updatePracticePanel();
