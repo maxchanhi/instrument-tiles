@@ -94,6 +94,17 @@ class InstrumentTilesGame {
         // Note difficulty tracking: pitchName -> { total, hits, misses, totalSustain, perfectCount }
         this.noteStats = {};
 
+        // Stop and Practice feature
+        this.stopPracticeEnabled = false;
+        this.consecutiveMisses = 0;
+        this.stopPracticeThreshold = 3; // Stop after 3 consecutive misses
+        this.practiceAttemptCount = 0; // How many times we've practiced this section
+        this.practiceMeasureStart = 0; // Start beat of the measure to practice
+        this.practiceMeasureEnd = 0; // End beat of the measure to practice
+        this.practiceTargetNotes = []; // Notes in the measure to practice
+        this.practiceHiddenNotes = []; // Notes hidden before practice measure
+        this.practiceNotesAchieved = false; // Whether all target notes reached at least "ok"
+
         // Practice mode state
         this.practiceMode = false;
         this.practiceNotes = [];
@@ -225,6 +236,18 @@ class InstrumentTilesGame {
         if (metronomeToggle) {
             metronomeToggle.addEventListener('change', (e) => {
                 this.metronomeEnabled = e.target.checked;
+            });
+        }
+
+        // Stop & Practice Toggle
+        const stopPracticeToggle = document.getElementById('stop-practice-toggle');
+        if (stopPracticeToggle) {
+            stopPracticeToggle.addEventListener('change', (e) => {
+                this.stopPracticeEnabled = e.target.checked;
+                // Reset consecutive misses when toggling off
+                if (!e.target.checked) {
+                    this.consecutiveMisses = 0;
+                }
             });
         }
 
@@ -646,8 +669,11 @@ class InstrumentTilesGame {
         this.totalNotes = this.notes.length;
         this.uniqueNotes = this.midiData.uniqueNotes;
         this.minMidi = this.midiData.minMidi;
+        
+        // Preserve measure boundaries
+        this.measures = this.midiData.measures || [];
 
-        console.log(`MusicXML tiles: ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches`);
+        console.log(`MusicXML tiles: ${this.totalNotes} notes, ${this.uniqueNotes} unique pitches, ${this.measures.length} measures`);
 
         // Detect consecutive same notes, dynamically adjust judgment window
         this.adjustConsecutiveNotes();
@@ -1476,10 +1502,22 @@ class InstrumentTilesGame {
             if (judgment === 'perfect') {
                 this.noteStats[pitchKey].hits++;
                 this.noteStats[pitchKey].perfectCount++;
+                // Reset consecutive misses on successful hit
+                this.consecutiveMisses = 0;
             } else if (judgment === 'miss') {
                 this.noteStats[pitchKey].misses++;
+                // Track consecutive misses for Stop & Practice
+                if (this.stopPracticeEnabled) {
+                    this.consecutiveMisses++;
+                    console.log(`Consecutive misses: ${this.consecutiveMisses}`);
+                    if (this.consecutiveMisses >= this.stopPracticeThreshold) {
+                        this.triggerStopAndPractice(note);
+                    }
+                }
             } else {
                 this.noteStats[pitchKey].hits++;
+                // Reset consecutive misses on ok/good hit
+                this.consecutiveMisses = 0;
             }
 
             console.log(`Judged: ${note.name}${isShortNote ? ' (fast)' : ''}, Sustain: ${(sustainPct * 100).toFixed(1)}%, Judgment: ${judgment}`);
@@ -1596,6 +1634,292 @@ class InstrumentTilesGame {
         if (infoEl) {
             infoEl.textContent = `Found ${struggling.length} note${struggling.length > 1 ? 's' : ''} with difficulty data. Top ${topStruggling.length} shown.`;
         }
+    }
+
+    /**
+     * Trigger Stop & Practice when consecutive miss threshold is reached
+     */
+    triggerStopAndPractice(missedNote) {
+        console.log(`Stop & Practice triggered! Consecutive misses: ${this.consecutiveMisses}`);
+
+        // Prevent multiple triggers
+        if (this.practiceTargetNotes.length > 0 && !this.practiceNotesAchieved) {
+            console.log('Already in practice mode, ignoring trigger');
+            return;
+        }
+
+        // Stop metronome immediately
+        this.metronomeRunning = false;
+
+        // Find the measure of the missed note
+        const measureNumber = missedNote.measureNumber || 1;
+
+        // Find the measure boundary (go back 1 measure for prep)
+        let targetMeasureIndex = -1;
+        for (let i = 0; i < this.measures.length; i++) {
+            if (this.measures[i].number === measureNumber) {
+                targetMeasureIndex = i;
+                break;
+            }
+        }
+
+        // If we can't find the measure, use the one before the missed note's measure
+        if (targetMeasureIndex < 0) {
+            targetMeasureIndex = Math.max(0, measureNumber - 2);
+        } else {
+            // Go back one measure for preparation (but not before measure 0)
+            targetMeasureIndex = Math.max(0, targetMeasureIndex - 1);
+        }
+
+        const targetMeasure = this.measures[targetMeasureIndex];
+        this.practiceMeasureStart = targetMeasure.startBeat;
+        this.practiceMeasureEnd = this.measures[targetMeasureIndex + 1]
+            ? this.measures[targetMeasureIndex + 1].endBeat
+            : targetMeasure.endBeat + targetMeasure.endBeat - targetMeasure.startBeat;
+
+        // Get all notes in this measure range (including one note after the measure)
+        this.practiceTargetNotes = this.notes.filter(note =>
+            note.startTime >= this.practiceMeasureStart &&
+            note.startTime < this.practiceMeasureEnd
+        );
+
+        // Include one note after the measure boundary
+        const nextMeasureNotes = this.notes.filter(note =>
+            note.startTime >= this.practiceMeasureEnd
+        ).sort((a, b) => a.startTime - b.startTime);
+
+        if (nextMeasureNotes.length > 0) {
+            this.practiceTargetNotes.push(nextMeasureNotes[0]);
+        }
+
+        console.log(`Practicing measure ${targetMeasure.number}: ${this.practiceMeasureStart.toFixed(2)} - ${this.practiceMeasureEnd.toFixed(2)} beats`);
+        console.log(`Target notes: ${this.practiceTargetNotes.length}`);
+
+        // Hide tiles before the practice measure (but track them for restoration)
+        this.practiceHiddenNotes = [];
+        this.notes.forEach(note => {
+            if (note.startTime < this.practiceMeasureStart && !note.hit && !note.missed) {
+                this.practiceHiddenNotes.push(note);
+                note.hit = true; // Mark as hit so they won't show
+                note.missed = false;
+            }
+        });
+
+        // Reset attempt counter
+        this.practiceAttemptCount = 0;
+        this.practiceNotesAchieved = false;
+
+        // Pause the game
+        this.pause();
+
+        // Show visual cue - big flash on screen
+        this.showStopPracticeCue(targetMeasure.number);
+
+        // Seek to practice position with prep beat after visual cue
+        setTimeout(() => {
+            this.seekToPracticePosition();
+        }, 2000);
+    }
+
+    /**
+     * Show visual cue that Stop & Practice is triggered
+     */
+    showStopPracticeCue(measureNumber) {
+        // Create a visual overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'stop-practice-overlay';
+        overlay.innerHTML = `
+            <div class="stop-practice-cue">
+                <h2>🛑 Stop & Practice!</h2>
+                <p>Starting from Measure ${measureNumber}</p>
+                <p class="cue-countdown">Get ready...</p>
+            </div>
+        `;
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        `;
+
+        // Add styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            @keyframes pulse {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.05); }
+            }
+            .stop-practice-cue {
+                text-align: center;
+                color: #fff;
+                animation: pulse 1s ease-in-out infinite;
+            }
+            .stop-practice-cue h2 {
+                font-size: 3em;
+                margin: 0 0 20px 0;
+                color: #ff6b6b;
+            }
+            .stop-practice-cue p {
+                font-size: 1.5em;
+                margin: 10px 0;
+            }
+            .cue-countdown {
+                color: #4ecdc4;
+                font-size: 2em !important;
+                margin-top: 30px !important;
+            }
+        `;
+        document.head.appendChild(style);
+        document.body.appendChild(overlay);
+
+        // Countdown during overlay
+        let countdown = 2;
+        const countdownEl = overlay.querySelector('.cue-countdown');
+        const countdownInterval = setInterval(() => {
+            countdown--;
+            if (countdown > 0) {
+                countdownEl.textContent = `Get ready... ${countdown}`;
+            } else {
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+
+        // Remove overlay after 2 seconds
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 2000);
+    }
+
+    /**
+     * Seek to practice position and start playback with prep beat
+     */
+    seekToPracticePosition() {
+        // Calculate position: 2 beats before the measure start for user to pick up
+        const prepBeats = 2;
+        const prepBeatTime = Math.max(0, this.practiceMeasureStart - (prepBeats * this.metronomeBeatUnit));
+
+        console.log(`Seeking to practice position: prepBeat=${prepBeatTime.toFixed(2)}, measureStart=${this.practiceMeasureStart.toFixed(2)}, measureEnd=${this.practiceMeasureEnd.toFixed(2)}`);
+
+        // Reset notes for the practice section
+        this.resetNotesInRange(this.practiceMeasureStart, this.practiceMeasureEnd + 5);
+
+        // Directly set the start time and reset state
+        this.startTime = this.audioContext.currentTime - (prepBeatTime / this.speed);
+        this.currentTime = prepBeatTime;
+        this.isPaused = false;
+        this.isPlaying = true;
+
+        // Re-sync metronome to the new position
+        this.initializeMetronomeClock(prepBeatTime);
+        this.metronomeRunning = this.metronomeEnabled;
+
+        // Reset consecutive misses for fresh attempt
+        this.consecutiveMisses = 0;
+
+        // Reset notes before prep position
+        this.resetNotesAfter(prepBeatTime);
+
+        this.practiceAttemptCount++;
+        this.updateStatus(`Practice attempt #${this.practiceAttemptCount}. Get ready!`);
+
+        // Update play button
+        const playBtn = document.getElementById('play-btn');
+        if (playBtn) playBtn.textContent = '⏸ Pause';
+
+        // Enable controls
+        this.enableControls();
+
+        // Start the game loop!
+        requestAnimationFrame(() => this.gameLoop());
+    }
+
+    /**
+     * Check if practice section is complete and all notes achieved
+     */
+    checkPracticeSectionComplete() {
+        if (!this.stopPracticeEnabled) return false;
+        
+        // If no target notes set, exit practice mode
+        if (this.practiceTargetNotes.length === 0) {
+            return false;
+        }
+
+        // Check if we've passed the practice measure end
+        if (this.currentTime < this.practiceMeasureEnd) return false;
+
+        // Prevent multiple re-entries
+        if (this._isCheckingPractice) return false;
+        this._isCheckingPractice = true;
+
+        // Check if all target notes achieved at least "ok"
+        const allAchieved = this.practiceTargetNotes.every(note => {
+            if (note.hit) return true;
+            if (note.missed) return false;
+            // If note has some hold time, it was at least attempted
+            return note.accumulatedHoldTime > 0;
+        });
+
+        setTimeout(() => {
+            this._isCheckingPractice = false;
+        }, 500);
+
+        if (allAchieved) {
+            this.practiceNotesAchieved = true;
+            this.updateStatus(`Great! Measure complete. Continuing...`);
+
+            // Restore hidden notes from before the practice measure
+            this.practiceHiddenNotes.forEach(note => {
+                note.hit = false;
+                note.missed = false;
+            });
+
+            // Reset practice state and continue normal playback
+            this.consecutiveMisses = 0;
+            this.practiceTargetNotes = [];
+            this.practiceHiddenNotes = [];
+            this.practiceMeasureStart = 0;
+            this.practiceMeasureEnd = 0;
+            return true;
+        } else {
+            // Not all notes achieved, loop again to the SAME position
+            const failedNotes = this.practiceTargetNotes.filter(n => !n.hit && n.missed);
+            console.log(`Practice incomplete. Failed notes: ${failedNotes.map(n => n.name).join(', ')}`);
+            this.updateStatus(`Not quite there. Trying again (attempt #${this.practiceAttemptCount + 1})...`);
+            
+            // Small delay before restarting to give visual feedback
+            setTimeout(() => {
+                this.seekToPracticePosition();
+            }, 500);
+            return false;
+        }
+    }
+
+    /**
+     * Reset notes in a specific time range for practice
+     */
+    resetNotesInRange(startBeat, endBeat) {
+        this.notes.forEach(note => {
+            if (note.startTime >= startBeat && note.startTime < endBeat) {
+                note.hit = false;
+                note.missed = false;
+                note.accumulatedHoldTime = 0;
+                note.isBeingHeld = false;
+                note.lastHoldUpdate = null;
+            }
+        });
     }
 
     /**
@@ -2016,6 +2340,11 @@ class InstrumentTilesGame {
 
         if (this.metronomeRunning) {
             this.scheduleMetronomeClicks();
+        }
+
+        // Check Stop & Practice section completion
+        if (this.stopPracticeEnabled && this.practiceTargetNotes.length > 0) {
+            this.checkPracticeSectionComplete();
         }
 
         // Finalize judgment for notes that have fully passed the line

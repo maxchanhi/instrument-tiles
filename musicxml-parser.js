@@ -6,6 +6,7 @@ class MusicXmlParser {
         this.divisions = 4;
         this.tracks = [];
         this.tiles = [];
+        this.measures = []; // Array of {startBeat, endBeat, number, timeSignature}
         this.uniqueNotes = 0;
         this.minMidi = 60;
         this.maxMidi = 72;
@@ -70,8 +71,9 @@ class MusicXmlParser {
             const measures = part.querySelectorAll('measure');
             measures.forEach((measure, measureIndex) => {
                 const measureStartInDivisions = offsetInDivisions;
+                const measureStartTime = measureStartInDivisions / this.divisions;
 
-                // Process children in document order
+                // Process children in document order (this may update timeSignature and divisions)
                 Array.from(measure.children).forEach(child => {
                     const tag = child.tagName;
 
@@ -179,9 +181,18 @@ class MusicXmlParser {
                     }
                 });
 
-                // Measure end: jump to next measure boundary based on time signature
-                // divisions = divisions per quarter note, so we need to scale by denominator
+                // Measure end: calculate length based on CURRENT time signature (after attributes processed)
                 const measureLenDiv = (this.timeSignature.numerator / this.timeSignature.denominator) * 4 * this.divisions;
+                const measureEndTime = (measureStartInDivisions + measureLenDiv) / this.divisions;
+
+                // Store measure boundary info
+                this.measures.push({
+                    startBeat: measureStartTime,
+                    endBeat: measureEndTime,
+                    number: measureIndex + 1,
+                    timeSignature: { ...this.timeSignature }
+                });
+
                 offsetInDivisions = measureStartInDivisions + measureLenDiv;
             });
 
@@ -254,6 +265,15 @@ class MusicXmlParser {
             ? Math.min(scaledDuration, 1 * this.tileDurationRatio)
             : scaledDuration;
 
+        // Find which measure this note belongs to
+        let measureNumber = 1;
+        for (let i = this.measures.length - 1; i >= 0; i--) {
+            if (note.startTime >= this.measures[i].startBeat) {
+                measureNumber = this.measures[i].number;
+                break;
+            }
+        }
+
         return {
             midi: note.midi,
             name: note.name,
@@ -269,7 +289,8 @@ class MusicXmlParser {
             x: 0, y: 0, width: 0, height: 0,
             originalDuration: note.duration,
             hitWindowOffset: 0,
-            sustainRequired: true
+            sustainRequired: true,
+            measureNumber: measureNumber
         };
     }
 
