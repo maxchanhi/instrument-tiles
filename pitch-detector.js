@@ -63,7 +63,7 @@ class PitchDetector {
             console.log('Microphone permission granted, tracks:', this.mediaStream.getTracks().length);
 
             this.analyser = this.audioContext.createAnalyser();
-            this.analyser.fftSize = 2048;
+            this.analyser.fftSize = 4096; // Increased from 2048 for better frequency resolution
             this.analyser.smoothingTimeConstant = this.smoothing;
 
             const source = this.audioContext.createMediaStreamSource(this.mediaStream);
@@ -216,7 +216,7 @@ class PitchDetector {
      */
     findSpectrumPeaks(fftData, frequencyResolution) {
         const peaks = [];
-        const minBinDistance = 10;
+        const minBinDistance = 5; // Reduced from 10 for finer detection
 
         // Find local maxima in the spectrum
         for (let i = 2; i < fftData.length - 2; i++) {
@@ -237,9 +237,21 @@ class PitchDetector {
             }
             if (tooClose) continue;
 
+            // Use parabolic interpolation for more accurate frequency estimation
+            let interpolatedFreq = frequency;
+            if (i > 0 && i < fftData.length - 1) {
+                const y1 = fftData[i - 1];
+                const y2 = fftData[i];
+                const y3 = fftData[i + 1];
+                const p = 0.5 * (y1 - y3) / (y1 - 2 * y2 + y3);
+                if (Math.abs(p) < 1) {
+                    interpolatedFreq = (i + p) * frequencyResolution;
+                }
+            }
+
             peaks.push({
                 bin: i,
-                frequency: frequency,
+                frequency: interpolatedFreq,
                 magnitude: fftData[i]
             });
         }

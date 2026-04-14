@@ -1824,9 +1824,76 @@ class InstrumentTilesGame {
     }
 
     /**
+     * Speak encouragement message using Web Speech API
+     * @param {number} measureNumber - The measure number to practice
+     */
+    speakEncouragement(measureNumber) {
+        // Check if browser supports speech synthesis
+        if (!('speechSynthesis' in window)) {
+            console.warn('Speech Synthesis not supported, skipping voice announcement');
+            return;
+        }
+
+        // Cancel any ongoing speech
+        window.speechSynthesis.cancel();
+
+        // Ensure measure number is spoken in English by converting to English words
+        const englishNumber = this.numberToEnglishWords(measureNumber);
+        const message = `Let's practice at bar ${englishNumber}`;
+
+        // Create utterance
+        const utterance = new SpeechSynthesisUtterance(message);
+        
+        // Configure voice settings for encouraging tone
+        utterance.rate = 0.9;       // Slightly slower for clarity
+        utterance.pitch = 1.1;      // Slightly higher pitch for warmth
+        utterance.volume = 1.0;     // Full volume
+        utterance.lang = 'en-US';   // Force English language
+        
+        // Try to use a friendly English voice if available
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(voice => 
+            voice.lang === 'en-US' && (voice.name.includes('Google') || voice.name.includes('Samantha'))
+        ) || voices.find(voice => 
+            voice.lang.startsWith('en-')
+        );
+        
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+        }
+
+        // Speak the message
+        window.speechSynthesis.speak(utterance);
+        
+        console.log(`🎤 Speaking: "${message}"`);
+    }
+
+    /**
+     * Convert number to English words for speech
+     */
+    numberToEnglishWords(num) {
+        if (typeof num === 'string') {
+            // If it's already a string (like "第1小节"), extract the number
+            const match = num.match(/\d+/);
+            if (match) {
+                num = parseInt(match[0]);
+            } else {
+                return num; // Return as-is if no number found
+            }
+        }
+        
+        // For measure numbers, just return the number as string
+        // SpeechSynthesis will read it correctly in English
+        return String(num);
+    }
+
+    /**
      * Show visual cue that Stop & Practice is triggered
      */
     showStopPracticeCue(measureNumber) {
+        // Speak encouragement using Web Speech API
+        this.speakEncouragement(measureNumber);
+
         // Create a visual overlay
         const overlay = document.createElement('div');
         overlay.id = 'stop-practice-overlay';
