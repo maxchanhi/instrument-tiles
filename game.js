@@ -106,6 +106,7 @@ class InstrumentTilesGame {
         this.practiceHiddenNotes = []; // Notes hidden before practice measure
         this.practiceTruncatedNotes = []; // Notes that were truncated (tie-broken) for practice
         this.practiceNotesAchieved = false; // Whether all target notes reached at least "ok"
+        this.usedStopPractice = false; // Track if Stop & Practice was used this session
 
         // Practice mode state
         this.practiceMode = false;
@@ -1086,6 +1087,10 @@ class InstrumentTilesGame {
         // A little lookahead buffer
         this.notes.forEach(note => {
             if (note.startTime >= time - 0.5) {
+                // Skip hidden practice notes - keep them hidden (hit=true)
+                if (this.practiceHiddenNotes && this.practiceHiddenNotes.includes(note)) {
+                    return;
+                }
                 note.hit = false;
                 note.missed = false;
                 note.accumulatedHoldTime = 0;
@@ -1723,6 +1728,9 @@ class InstrumentTilesGame {
         this.metronomeRunning = false;
         this.isPlaying = false;
 
+        // Track that Stop & Practice was used (so we don't submit to leaderboard)
+        this.usedStopPractice = true;
+
         // Find the measure of the missed note
         const measureNumber = missedNote.measureNumber || 1;
 
@@ -1745,9 +1753,10 @@ class InstrumentTilesGame {
 
         const targetMeasure = this.measures[targetMeasureIndex];
         this.practiceMeasureStart = targetMeasure.startBeat;
-        this.practiceMeasureEnd = this.measures[targetMeasureIndex + 1]
-            ? this.measures[targetMeasureIndex + 1].endBeat
-            : targetMeasure.endBeat + targetMeasure.endBeat - targetMeasure.startBeat;
+        // Use the target measure's time signature to calculate end beat accurately
+        const targetTs = targetMeasure.timeSignature || this.timeSignature;
+        const measureLength = (targetTs.numerator / targetTs.denominator) * 4;
+        this.practiceMeasureEnd = targetMeasure.startBeat + measureLength;
         this.practiceMeasureNumber = targetMeasure.number;
 
         // Get all notes in this measure range (including one note after the measure)
@@ -2986,6 +2995,12 @@ class InstrumentTilesGame {
         const accuracy = this.totalNotes > 0 
             ? ((this.hitNotes / this.totalNotes) * 100).toFixed(1) 
             : 0;
+
+        // Skip leaderboard if Stop & Practice was used
+        if (this.usedStopPractice) {
+            alert(`🎵 Game Over!\n\nScore: ${this.score}\nAccuracy: ${accuracy}%\nCombo: ${this.combo}\n\n(Note: Score not submitted to leaderboard - practice mode used)`);
+            return;
+        }
 
         // Save score to leaderboard
         this.saveScore();
