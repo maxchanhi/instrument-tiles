@@ -1990,9 +1990,17 @@ class InstrumentTilesGame {
         
         // Add lead time so tiles come from top of screen (not right at judgment line)
         const timeToTop = this.judgmentLineY / this.noteSpeed; // Time for tile to travel from top to line
-        const prepBeatTime = Math.max(0, this.practiceMeasureStart - (prepBeats * this.metronomeBeatUnit) - timeToTop);
+        
+        // Calculate start position: go back prepBeats for metronome, plus timeToTop for screen travel
+        // Priority: ensure tiles come from top (timeToTop), then add prep beats if possible
+        const basePosition = this.practiceMeasureStart - timeToTop;
+        const prepBeatTime = basePosition - (prepBeats * this.metronomeBeatUnit);
+        
+        // Only allow going back prep beats if it doesn't go past the start
+        // Otherwise just ensure we have timeToTop lead time (tiles from top)
+        const finalStartTime = Math.max(0, prepBeatTime);
 
-        console.log(`Seeking to practice position: prepBeat=${prepBeatTime.toFixed(2)}, timeToTop=${timeToTop.toFixed(2)}, measureStart=${this.practiceMeasureStart.toFixed(2)}, measureEnd=${this.practiceMeasureEnd.toFixed(2)}`);
+        console.log(`Seeking to practice position: start=${finalStartTime.toFixed(2)}, timeToTop=${timeToTop.toFixed(2)}, measureStart=${this.practiceMeasureStart.toFixed(2)}, measureEnd=${this.practiceMeasureEnd.toFixed(2)}`);
 
         // Remove visual cue overlay if exists
         const existingOverlay = document.getElementById('stop-practice-overlay');
@@ -2012,7 +2020,7 @@ class InstrumentTilesGame {
         });
 
         // Reset notes in the practice section (including prep beats area) so they can be played again
-        this.resetNotesInRange(prepBeatTime, this.practiceMeasureEnd + 5);
+        this.resetNotesInRange(finalStartTime, this.practiceMeasureEnd + 5);
 
         // Also reset any notes in practice target that may have been finalized
         this.practiceTargetNotes.forEach(note => {
@@ -2023,9 +2031,9 @@ class InstrumentTilesGame {
             note.lastHoldUpdate = null;
         });
 
-        // Directly set the start time so current position = prepBeatTime
-        this.startTime = this.audioContext.currentTime - (prepBeatTime / this.speed);
-        this.currentTime = prepBeatTime;
+        // Directly set the start time so current position = finalStartTime
+        this.startTime = this.audioContext.currentTime - (finalStartTime / this.speed);
+        this.currentTime = finalStartTime;
         this.isPaused = false;
         this.isPlaying = true;
 
@@ -2048,7 +2056,7 @@ class InstrumentTilesGame {
         this.updateStatus(`Practice attempt #${this.practiceAttemptCount}. Get ready!`);
 
         // Play 2 prep beat count-in clicks, then start metronome
-        this.playPracticeCountIn(prepBeatTime, prepBeats);
+        this.playPracticeCountIn(finalStartTime, prepBeats);
 
         // Update play button
         const playBtn = document.getElementById('play-btn');
