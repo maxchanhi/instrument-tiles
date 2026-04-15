@@ -1987,9 +1987,12 @@ class InstrumentTilesGame {
     seekToPracticePosition() {
         // Calculate position: 2 beats before the measure start for user to pick up
         const prepBeats = 2;
-        const prepBeatTime = Math.max(0, this.practiceMeasureStart - (prepBeats * this.metronomeBeatUnit));
+        
+        // Add lead time so tiles come from top of screen (not right at judgment line)
+        const timeToTop = this.judgmentLineY / this.noteSpeed; // Time for tile to travel from top to line
+        const prepBeatTime = Math.max(0, this.practiceMeasureStart - (prepBeats * this.metronomeBeatUnit) - timeToTop);
 
-        console.log(`Seeking to practice position: prepBeat=${prepBeatTime.toFixed(2)}, measureStart=${this.practiceMeasureStart.toFixed(2)}, measureEnd=${this.practiceMeasureEnd.toFixed(2)}`);
+        console.log(`Seeking to practice position: prepBeat=${prepBeatTime.toFixed(2)}, timeToTop=${timeToTop.toFixed(2)}, measureStart=${this.practiceMeasureStart.toFixed(2)}, measureEnd=${this.practiceMeasureEnd.toFixed(2)}`);
 
         // Remove visual cue overlay if exists
         const existingOverlay = document.getElementById('stop-practice-overlay');
