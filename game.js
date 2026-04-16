@@ -138,6 +138,7 @@ class InstrumentTilesGame {
         this.setupEventListeners();
         this.render();
         this.loadDefaultMidi().then(() => {
+            this.initLibrary(); // Load built-in library songs
             this.displayLeaderboard();
         });
         
