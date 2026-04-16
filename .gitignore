@@ -5,3 +5,4 @@ npm-debug.log
 .agents/
 .trae/
 skills-lock.json
+update-library.js
