@@ -97,7 +97,7 @@ class InstrumentTilesGame {
         // Stop and Practice feature
         this.stopPracticeEnabled = false;
         this.consecutiveMisses = 0;
-        this.stopPracticeThreshold = 3; // Stop after 3 consecutive misses
+        this.stopPracticeThreshold = 2; // Stop after N consecutive misses
         this.practiceAttemptCount = 0; // How many times we've practiced this section
         this.practiceMeasureStart = 0; // Start beat of the measure to practice
         this.practiceMeasureEnd = 0; // End beat of the measure to practice
@@ -250,6 +250,15 @@ class InstrumentTilesGame {
                 if (!e.target.checked) {
                     this.consecutiveMisses = 0;
                 }
+            });
+        }
+
+        // Stop & Practice Miss Threshold Slider
+        const stopPracticeMissesSlider = document.getElementById('stop-practice-misses');
+        if (stopPracticeMissesSlider) {
+            stopPracticeMissesSlider.addEventListener('input', (e) => {
+                this.stopPracticeThreshold = parseInt(e.target.value);
+                document.getElementById('stop-practice-misses-value').textContent = this.stopPracticeThreshold;
             });
         }
 
@@ -550,7 +559,6 @@ class InstrumentTilesGame {
         console.log('initLibrary called');
         const librarySongs = [
             { name: 'BananaBoat_inC.musicxml', displayName: 'BananaBoat inC' },
-            { name: 'Joy To The World-Clarinet.musicxml', displayName: 'Joy To The World-Clarinet' },
             { name: 'Lobgesang.musicxml', displayName: 'Lobgesang' },
             { name: 'Minuet_Handel.musicxml', displayName: 'Minuet Handel' },
             { name: 'Off She Goes.musicxml', displayName: 'Off She Goes' },
