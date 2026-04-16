@@ -1980,8 +1980,9 @@ class InstrumentTilesGame {
     seekToPracticePosition() {
         // Always use 2 prep beats for practice (regardless of time signature)
         const prepBeats = 2;
-        // Add lead time so tiles come from top of screen (not right at judgment line)
-        const timeToTop = this.judgmentLineY / this.noteSpeed;
+        // Reduce fall distance by 50% on repeated practice attempts to reduce wait time
+        const fallDistanceMultiplier = this.practiceAttemptCount > 0 ? 0.2 : 1.0;
+        const timeToTop = (this.judgmentLineY * fallDistanceMultiplier) / this.noteSpeed;
 
         // Calculate prep beat position: always 2 beats before the practice measure start
         // Even if practiceMeasureStart is 0, we still need prep beats, so we go negative
