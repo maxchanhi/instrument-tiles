@@ -141,7 +141,7 @@ class InstrumentTilesGame {
             this.initLibrary(); // Load built-in library songs
             this.displayLeaderboard();
         });
-        
+        this.initLibrary();
     }
 
     resizeCanvas() {
