@@ -106,7 +106,6 @@ class InstrumentTilesGame {
         this.practiceHiddenNotes = []; // Notes hidden before practice measure
         this.practiceTruncatedNotes = []; // Notes that were truncated (tie-broken) for practice
         this.practiceNotesAchieved = false; // Whether all target notes reached at least "ok"
-        this.usedStopPractice = false; // Track if Stop & Practice was used this session
 
         // Practice mode state
         this.practiceMode = false;
@@ -994,6 +993,8 @@ class InstrumentTilesGame {
             // Play count-in based on the same grid that the first note belongs to
             // This aligns the clicks perfectly with the first note's arrival
             this.playCountIn(firstNoteBeat);
+            // Advance metronome past the count-in beats so it doesn't replay them
+            this.metronomeNextBeat = firstNoteBeat;
             this.updateStatus('Count-in...');
 
             document.getElementById('play-btn').disabled = true;
@@ -1087,10 +1088,6 @@ class InstrumentTilesGame {
         // A little lookahead buffer
         this.notes.forEach(note => {
             if (note.startTime >= time - 0.5) {
-                // Skip hidden practice notes - keep them hidden (hit=true)
-                if (this.practiceHiddenNotes && this.practiceHiddenNotes.includes(note)) {
-                    return;
-                }
                 note.hit = false;
                 note.missed = false;
                 note.accumulatedHoldTime = 0;
@@ -1728,9 +1725,6 @@ class InstrumentTilesGame {
         this.metronomeRunning = false;
         this.isPlaying = false;
 
-        // Track that Stop & Practice was used (so we don't submit to leaderboard)
-        this.usedStopPractice = true;
-
         // Find the measure of the missed note
         const measureNumber = missedNote.measureNumber || 1;
 
@@ -1753,10 +1747,9 @@ class InstrumentTilesGame {
 
         const targetMeasure = this.measures[targetMeasureIndex];
         this.practiceMeasureStart = targetMeasure.startBeat;
-        // Use the target measure's time signature to calculate end beat accurately
-        const targetTs = targetMeasure.timeSignature || this.timeSignature;
-        const measureLength = (targetTs.numerator / targetTs.denominator) * 4;
-        this.practiceMeasureEnd = targetMeasure.startBeat + measureLength;
+        this.practiceMeasureEnd = this.measures[targetMeasureIndex + 1]
+            ? this.measures[targetMeasureIndex + 1].endBeat
+            : targetMeasure.endBeat + targetMeasure.endBeat - targetMeasure.startBeat;
         this.practiceMeasureNumber = targetMeasure.number;
 
         // Get all notes in this measure range (including one note after the measure)
@@ -1985,22 +1978,20 @@ class InstrumentTilesGame {
      * Seek to practice position and start playback with prep beat
      */
     seekToPracticePosition() {
-        // Calculate position: 2 beats before the measure start for user to pick up
+        // Always use 2 prep beats for practice (regardless of time signature)
         const prepBeats = 2;
-        
         // Add lead time so tiles come from top of screen (not right at judgment line)
-        const timeToTop = this.judgmentLineY / this.noteSpeed; // Time for tile to travel from top to line
-        
-        // Calculate start position: go back prepBeats for metronome, plus timeToTop for screen travel
-        // Priority: ensure tiles come from top (timeToTop), then add prep beats if possible
-        const basePosition = this.practiceMeasureStart - timeToTop;
-        const prepBeatTime = basePosition - (prepBeats * this.metronomeBeatUnit);
-        
-        // Only allow going back prep beats if it doesn't go past the start
-        // Otherwise just ensure we have timeToTop lead time (tiles from top)
-        const finalStartTime = Math.max(0, prepBeatTime);
+        const timeToTop = this.judgmentLineY / this.noteSpeed;
 
-        console.log(`Seeking to practice position: start=${finalStartTime.toFixed(2)}, timeToTop=${timeToTop.toFixed(2)}, measureStart=${this.practiceMeasureStart.toFixed(2)}, measureEnd=${this.practiceMeasureEnd.toFixed(2)}`);
+        // Calculate prep beat position: always 2 beats before the practice measure start
+        // Even if practiceMeasureStart is 0, we still need prep beats, so we go negative
+        const prepBeatTime = this.practiceMeasureStart - timeToTop - (prepBeats * this.metronomeBeatUnit);
+
+        // Keep prepBeatTime as-is even if negative (e.g. practice from bar 1)
+        // Negative value ensures prep beats are scheduled before beat 0
+        const effectiveStartTime = prepBeatTime;
+
+        console.log(`Seeking to practice position: prepBeat=${prepBeatTime.toFixed(2)}, effectiveStart=${effectiveStartTime.toFixed(2)}, measureStart=${this.practiceMeasureStart.toFixed(2)}, measureEnd=${this.practiceMeasureEnd.toFixed(2)}`);
 
         // Remove visual cue overlay if exists
         const existingOverlay = document.getElementById('stop-practice-overlay');
@@ -2020,7 +2011,8 @@ class InstrumentTilesGame {
         });
 
         // Reset notes in the practice section (including prep beats area) so they can be played again
-        this.resetNotesInRange(finalStartTime, this.practiceMeasureEnd + 5);
+        // When effectiveStartTime is negative (bar 1), notes from beat 0 onward are still reset
+        this.resetNotesInRange(effectiveStartTime, this.practiceMeasureEnd + 5);
 
         // Also reset any notes in practice target that may have been finalized
         this.practiceTargetNotes.forEach(note => {
@@ -2031,19 +2023,6 @@ class InstrumentTilesGame {
             note.lastHoldUpdate = null;
         });
 
-        // Directly set the start time so current position = finalStartTime
-        this.startTime = this.audioContext.currentTime - (finalStartTime / this.speed);
-        this.currentTime = finalStartTime;
-        this.isPaused = false;
-        this.isPlaying = true;
-
-        // Re-sync metronome to start from the prep position
-        this.initializeMetronomeClock(prepBeatTime);
-        this.metronomeRunning = false; // Don't start metronome yet - play count-in first
-
-        // Reset consecutive misses for fresh attempt
-        this.consecutiveMisses = 0;
-
         // Ensure hidden notes stay hidden after range resets
         this.practiceHiddenNotes.forEach(note => {
             if (note._practiceHiddenOriginalHit !== undefined) {
@@ -2052,11 +2031,24 @@ class InstrumentTilesGame {
             }
         });
 
+        // Directly set the start time so current position = effectiveStartTime
+        // When effectiveStartTime is negative (bar 1), startTime is pushed into the future so count-in clicks are in the future
+        this.startTime = this.audioContext.currentTime - (effectiveStartTime / this.speed);
+        this.currentTime = effectiveStartTime;
+        this.isPaused = false;
+        this.isPlaying = true;
+
+        // Don't initialize metronome clock yet - we'll play count-in first
+        // The metronome will start after the count-in finishes
+
+        // Reset consecutive misses for fresh attempt
+        this.consecutiveMisses = 0;
+
         this.practiceAttemptCount++;
         this.updateStatus(`Practice attempt #${this.practiceAttemptCount}. Get ready!`);
 
         // Play 2 prep beat count-in clicks, then start metronome
-        this.playPracticeCountIn(finalStartTime, prepBeats);
+        this.playPracticeCountIn(this.practiceMeasureStart, prepBeats);
 
         // Update play button
         const playBtn = document.getElementById('play-btn');
@@ -2069,21 +2061,46 @@ class InstrumentTilesGame {
         requestAnimationFrame(() => this.gameLoop());
     }
 
-    playPracticeCountIn(prepBeatTime, prepBeats) {
-        // Schedule count-in clicks for the 2 prep beats
-        for (let i = 0; i < prepBeats; i++) {
-            const clickBeat = prepBeatTime + i * this.metronomeBeatUnit;
-            const audioTime = this.startTime + (clickBeat / this.speed);
-            const accent = (i === 0); // Accent the first prep beat
-            if (audioTime >= this.audioContext.currentTime) {
+    playPracticeCountIn(practiceMeasureStart, prepBeats) {
+        this.metronomeRunning = false; // Don't start yet - play count-in first
+
+        // Count-in clicks at beat-aligned positions: prepBeats beats before practiceMeasureStart
+        // e.g. for practice at beat 0 with 2 prep clicks: clicks at beat -2, -1
+        //      for practice at beat 4 with 2 prep clicks: clicks at beat  2,  3
+        const firstClickBeat = practiceMeasureStart - prepBeats * this.metronomeBeatUnit;
+        const firstClickAudioTime = this.startTime + (firstClickBeat / this.speed);
+        let elapsed = 0;
+
+        if (firstClickAudioTime >= this.audioContext.currentTime) {
+            // Beat-aligned clicks are in the future — use them directly
+            this.initializeMetronomeClock(firstClickBeat);
+            for (let i = 0; i < prepBeats; i++) {
+                const clickBeat = firstClickBeat + i * this.metronomeBeatUnit;
+                const audioTime = this.startTime + (clickBeat / this.speed);
+                const accent = (i === 0);
                 this.playMetronomeClick(audioTime, accent);
+                console.log(`Scheduled practice count-in click ${i+1} at beat ${clickBeat}, audioTime=${audioTime.toFixed(3)}`);
             }
+            this.metronomeNextBeat = firstClickBeat + prepBeats * this.metronomeBeatUnit;
+            elapsed = prepBeats * this.metronomeBeatUnit / this.speed;
+        } else {
+            // Beat-aligned clicks would be in the past (e.g. bar 1 where practice starts at beat 0)
+            // Schedule clicks from now, spaced by beatUnit/speed
+            for (let i = 0; i < prepBeats; i++) {
+                const audioTime = this.audioContext.currentTime + i * this.metronomeBeatUnit / this.speed;
+                const accent = (i === 0);
+                this.playMetronomeClick(audioTime, accent);
+                console.log(`Scheduled practice count-in click ${i+1} (fallback) at audioTime=${audioTime.toFixed(3)}`);
+            }
+            this.initializeMetronomeClock(practiceMeasureStart);
+            elapsed = prepBeats * this.metronomeBeatUnit / this.speed;
         }
-        // Calculate time until prep beats finish then enable regular metronome
-        const prepDuration = prepBeats * this.metronomeBeatUnit / this.speed;
+
+        // Enable regular metronome after count-in finishes
         setTimeout(() => {
             this.metronomeRunning = this.metronomeEnabled;
-        }, prepDuration * 1000);
+            console.log('Metronome running after practice count-in');
+        }, elapsed * 1000);
     }
 
     /**
@@ -3006,12 +3023,6 @@ class InstrumentTilesGame {
         const accuracy = this.totalNotes > 0 
             ? ((this.hitNotes / this.totalNotes) * 100).toFixed(1) 
             : 0;
-
-        // Skip leaderboard if Stop & Practice was used
-        if (this.usedStopPractice) {
-            alert(`🎵 Game Over!\n\nScore: ${this.score}\nAccuracy: ${accuracy}%\nCombo: ${this.combo}\n\n(Note: Score not submitted to leaderboard - practice mode used)`);
-            return;
-        }
 
         // Save score to leaderboard
         this.saveScore();
