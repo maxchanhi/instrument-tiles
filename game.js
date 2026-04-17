@@ -94,6 +94,10 @@ class InstrumentTilesGame {
         // Note difficulty tracking: pitchName -> { total, hits, misses, totalSustain, perfectCount }
         this.noteStats = {};
 
+        // Leaderboard eligibility
+        this.leaderboardEligible = true;
+        this.hasRewound = false;
+
         // Stop and Practice feature
         this.stopPracticeEnabled = false;
         this.consecutiveMisses = 0;
@@ -114,6 +118,11 @@ class InstrumentTilesGame {
         this.practiceMaxLoops = 3;
         this.practiceOriginalNotes = null;
         this.practiceBpmRatio = 0.75; // Slow down to 75% for practice
+
+        // Dynamic Difficulty Adjustment
+        this.dynamicDifficultyEnabled = true;
+        this.dynamicDifficultyLevel = 0; // 0 = original, 1 = -10%, 2 = -15%, 3+ = -17.5%, -20%, etc.
+        this.originalBpm = 120; // Original BPM for cap reference
 
         // Practice excerpt settings
         this.practiceExcerptPercent = 10; // Percentage of music for practice excerpt
@@ -259,6 +268,14 @@ class InstrumentTilesGame {
             stopPracticeMissesSlider.addEventListener('input', (e) => {
                 this.stopPracticeThreshold = parseInt(e.target.value);
                 document.getElementById('stop-practice-misses-value').textContent = this.stopPracticeThreshold;
+            });
+        }
+
+        // Dynamic Difficulty Toggle
+        const dynamicDifficultyToggle = document.getElementById('dynamic-difficulty-toggle');
+        if (dynamicDifficultyToggle) {
+            dynamicDifficultyToggle.addEventListener('change', (e) => {
+                this.dynamicDifficultyEnabled = e.target.checked;
             });
         }
 
@@ -1055,6 +1072,22 @@ class InstrumentTilesGame {
         // Constrain to valid range
         targetTime = Math.max(0, Math.min(this.songLength, targetTime));
         
+        // Track leaderboard eligibility based on seeking
+        if (this.isPlaying || this.pauseTime > 0) {
+            // If rewinding to the beginning, reset score/combo and keep eligible
+            if (targetTime === 0) {
+                this.resetStats();
+                this.resetNotes();
+                this.hasRewound = false;
+                this.leaderboardEligible = true;
+            } else {
+                // Rewinding to a non-zero position makes the result ineligible
+                this.hasRewound = true;
+                this.leaderboardEligible = false;
+            }
+            this.updateLeaderboardWarning();
+        }
+        
         this.currentTime = targetTime;
         
         if (this.isPlaying && !this.isPaused) {
@@ -1181,7 +1214,10 @@ class InstrumentTilesGame {
         this.combo = 0;
         this.hitNotes = 0;
         this.missedNotes = 0;
+        this.leaderboardEligible = true;
+        this.hasRewound = false;
         this.updateStats();
+        this.updateLeaderboardWarning();
     }
 
     resetNotes() {
@@ -1202,6 +1238,13 @@ class InstrumentTilesGame {
         const total = this.hitNotes + this.missedNotes;
         const accuracy = total > 0 ? ((this.hitNotes / total) * 100).toFixed(1) : 100;
         document.getElementById('accuracy').textContent = `${accuracy}%`;
+    }
+
+    updateLeaderboardWarning() {
+        const warningEl = document.getElementById('leaderboard-warning');
+        if (warningEl) {
+            warningEl.style.display = this.leaderboardEligible ? 'none' : 'block';
+        }
     }
 
     async toggleMicrophone() {
@@ -1821,6 +1864,12 @@ class InstrumentTilesGame {
         // Reset attempt counter
         this.practiceAttemptCount = 0;
         this.practiceNotesAchieved = false;
+        // Store original BPM for dynamic difficulty adjustment
+        this.originalBpm = this.speed * 60;
+        this.dynamicDifficultyLevel = 0;
+        // Mark as ineligible for leaderboard when entering stop-practice mode
+        this.leaderboardEligible = false;
+        this.updateLeaderboardWarning();
 
         // Pause the game (stop game loop, keep audio context)
         this.isPaused = true;
@@ -1990,7 +2039,30 @@ class InstrumentTilesGame {
     seekToPracticePosition() {
         // Always use 2 prep beats for practice (regardless of time signature)
         const prepBeats = 2;
-        // Reduce fall distance by 50% on repeated practice attempts to reduce wait time
+
+        // Dynamic Difficulty Adjustment: reduce BPM on repeated attempts
+        if (this.dynamicDifficultyEnabled) {
+            this.dynamicDifficultyLevel++;
+            let reductionPercent = 0;
+            if (this.dynamicDifficultyLevel === 1) {
+                reductionPercent = 10;
+            } else if (this.dynamicDifficultyLevel === 2) {
+                reductionPercent = 15;
+            } else {
+                reductionPercent = 15 + (this.dynamicDifficultyLevel - 2) * 2.5;
+            }
+            // Cap at 50% reduction
+            reductionPercent = Math.min(reductionPercent, 50);
+            const newBpmRatio = 1 - (reductionPercent / 100);
+            const newBpm = Math.round(this.originalBpm * newBpmRatio);
+            this.speed = newBpm / 60;
+            // Update BPM display if element exists
+            const bpmInput = document.getElementById('bpm-input');
+            if (bpmInput) bpmInput.value = this.metronomeBeatUnit > 0 ? (this.speed * 60 / this.metronomeBeatUnit).toFixed(1) : this.speed.toFixed(2);
+            console.log(`Dynamic difficulty: Level ${this.dynamicDifficultyLevel}, ${reductionPercent}% slower, BPM: ${newBpm}`);
+        }
+
+        // Reduce fall distance by 80% on repeated practice attempts to reduce wait time
         const fallDistanceMultiplier = this.practiceAttemptCount > 0 ? 0.2 : 1.0;
         const timeToTop = (this.judgmentLineY * fallDistanceMultiplier) / this.noteSpeed;
 
@@ -2339,9 +2411,11 @@ class InstrumentTilesGame {
         // Recalculate positions
         this.calculateNotePositions();
 
-        // Enter practice mode
+        // Enter practice mode - mark as ineligible for leaderboard
         this.practiceMode = true;
         this.practiceLoopCount = 0;
+        this.leaderboardEligible = false;
+        this.updateLeaderboardWarning();
 
         // Update UI
         const loopEl = document.getElementById('practice-loop-info');
@@ -2949,6 +3023,12 @@ class InstrumentTilesGame {
 
     // Leaderboard methods
     saveScore() {
+        // Check if the score is eligible for the leaderboard
+        if (!this.leaderboardEligible) {
+            console.log(`Score NOT saved - ineligible for leaderboard. Score: ${this.score}, Accuracy: ${((this.hitNotes / this.totalNotes) * 100).toFixed(1)}%`);
+            return;
+        }
+
         const accuracy = this.totalNotes > 0 
             ? ((this.hitNotes / this.totalNotes) * 100).toFixed(1) 
             : 0;
@@ -3035,27 +3115,34 @@ class InstrumentTilesGame {
             ? ((this.hitNotes / this.totalNotes) * 100).toFixed(1) 
             : 0;
 
-        // Save score to leaderboard
+        // Save score to leaderboard (only if eligible)
         this.saveScore();
         
-        // Check leaderboard position
-        const leaderboard = this.loadLeaderboard();
-        const playerPosition = leaderboard.findIndex(entry => 
-            entry.name === this.playerName && entry.score === this.score
-        );
+        let endMessage = `🎵 Game Over!\n\nScore: ${this.score}\nAccuracy: ${accuracy}%\nCombo: ${this.combo}`;
         
-        let positionMessage = '';
-        if (playerPosition !== -1) {
-            if (playerPosition === 0) {
-                positionMessage = '\n🏆 NEW HIGH SCORE! 🏆\nYou\'re #1 on the leaderboard!';
-            } else if (playerPosition < 3) {
-                positionMessage = `\n🎉 You're #${playerPosition + 1} on the leaderboard!`;
-            } else {
-                positionMessage = `\n📊 You're ranked #${playerPosition + 1} on the leaderboard.`;
+        if (!this.leaderboardEligible) {
+            endMessage += '\n\n⚠️ Result not saved to leaderboard\n(Practice mode or rewind detected)';
+        } else {
+            // Check leaderboard position
+            const leaderboard = this.loadLeaderboard();
+            const playerPosition = leaderboard.findIndex(entry => 
+                entry.name === this.playerName && entry.score === this.score
+            );
+            
+            let positionMessage = '';
+            if (playerPosition !== -1) {
+                if (playerPosition === 0) {
+                    positionMessage = '\n🏆 NEW HIGH SCORE! 🏆\nYou\'re #1 on the leaderboard!';
+                } else if (playerPosition < 3) {
+                    positionMessage = `\n🎉 You're #${playerPosition + 1} on the leaderboard!`;
+                } else {
+                    positionMessage = `\n📊 You're ranked #${playerPosition + 1} on the leaderboard.`;
+                }
             }
+            endMessage += `${positionMessage}\n\nCheck the leaderboard on the right!`;
         }
         
-        alert(`🎵 Game Over!\n\nScore: ${this.score}\nAccuracy: ${accuracy}%\nCombo: ${this.combo}${positionMessage}\n\nCheck the leaderboard on the right!`);
+        alert(endMessage);
     }
 }
 
