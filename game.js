@@ -576,6 +576,7 @@ class InstrumentTilesGame {
         console.log('initLibrary called');
         const librarySongs = [
             { name: 'BananaBoat_inC.musicxml', displayName: 'BananaBoat inC' },
+            { name: 'Bumbling Baffoon bsn.musicxml', displayName: 'Bumbling Baffoon bsn' },
             { name: 'Lobgesang.musicxml', displayName: 'Lobgesang' },
             { name: 'Minuet_Handel.musicxml', displayName: 'Minuet Handel' },
             { name: 'Off She Goes.musicxml', displayName: 'Off She Goes' },
