@@ -741,6 +741,17 @@ class InstrumentTilesGame {
 
         // Calculate note positions
         this.calculateNotePositions();
+
+        // Auto-detect max simultaneous notes and update slider
+        const detectedMax = this.calculateMaxSimultaneousNotes();
+        this.maxSimultaneousNotes = detectedMax;
+
+        // Update the slider UI with auto-detected value
+        const maxNotesControl = document.getElementById('max-notes-detect');
+        if (maxNotesControl) {
+            maxNotesControl.value = detectedMax;
+            document.getElementById('max-notes-value').textContent = detectedMax;
+        }
     }
 
     /**
@@ -777,6 +788,40 @@ class InstrumentTilesGame {
         }
         
         console.log(`Global cooldown: ${this.currentCooldown.toFixed(0)}ms`);
+    }
+
+    /**
+     * Calculate maximum number of notes that play simultaneously
+     */
+    calculateMaxSimultaneousNotes() {
+        if (!this.notes || this.notes.length === 0) return 1;
+
+        let maxSimultaneous = 1;
+        
+        // For each note, count how many others overlap with it
+        for (let i = 0; i < this.notes.length; i++) {
+            const note = this.notes[i];
+            const start = note.startTime;
+            const end = note.endTime;
+            
+            let overlapping = 0;
+            for (let j = 0; j < this.notes.length; j++) {
+                if (i === j) continue;
+                const other = this.notes[j];
+                // Check if notes overlap in time
+                if (other.startTime < end && other.endTime > start) {
+                    overlapping++;
+                }
+            }
+            
+            maxSimultaneous = Math.max(maxSimultaneous, overlapping + 1);
+            
+            // Early exit if we find 4 (max slider value)
+            if (maxSimultaneous >= 4) break;
+        }
+        
+        console.log(`Max simultaneous notes in piece: ${maxSimultaneous}`);
+        return Math.min(maxSimultaneous, 4);
     }
 
     generateMeasures() {
