@@ -1450,7 +1450,15 @@ class InstrumentTilesGame {
         const detect = () => {
             if (!this.pitchDetectionEnabled) return;
             
-            const pitches = this.pitchDetector.detectMultiplePitches(this.maxSimultaneousNotes);
+            // Get currently visible target MIDI notes for targeted detection
+            const visibleTargets = this.notes
+                .filter(n => !n.hit && n.startTime <= this.currentTime + 5 && n.endTime >= this.currentTime - 1)
+                .map(n => n.midi);
+            
+            const uniqueTargets = [...new Set(visibleTargets)];
+            
+            // Use targeted detection for better performance
+            const pitches = this.pitchDetector.detectTargetedPitches(uniqueTargets, this.maxSimultaneousNotes);
             
             // Update all pitch display elements
             const pitchElements = [];

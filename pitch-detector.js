@@ -212,6 +212,117 @@ class PitchDetector {
     }
 
     /**
+     * Fast targeted pitch detection - looks only at target note frequencies
+     * @param {Array} targetMidiNotes - Array of target MIDI note numbers to check against
+     * @param {number} maxPitches - Maximum number of pitches to return
+     * @returns {Array} Array of detected pitch objects
+     */
+    detectTargetedPitches(targetMidiNotes = [], maxPitches = 2) {
+        if (!this.isListening || !this.analyser) return [];
+        if (!targetMidiNotes || targetMidiNotes.length === 0) return [];
+
+        this.analyser.getFloatTimeDomainData(this.dataArray);
+
+        // Quick RMS check - skip if signal too weak
+        let rms = 0;
+        for (let i = 0; i < this.dataArray.length; i++) {
+            rms += this.dataArray[i] * this.dataArray[i];
+        }
+        rms = Math.sqrt(rms / this.dataArray.length);
+
+        if (rms < this.rmsThreshold) {
+            return [];
+        }
+
+        // Get FFT data
+        const fftSize = this.analyser.fftSize;
+        const frequencyResolution = this.audioContext.sampleRate / fftSize;
+        const fftData = new Float32Array(fftSize / 2);
+        this.analyser.getFloatFrequencyData(fftData);
+
+        // Calculate bin width for half semitone: ~1 bin per half semitone at typical sample rate
+        // At 44100Hz with 2048 FFT: each bin is ~21.5Hz, half semitone is ~1-2 bins
+        const halfSemitoneBins = 2; // ±2 bins around target = ~half semitone range
+
+        // Convert target MIDI notes to frequencies and find their FFT bins
+        const targets = targetMidiNotes.map(midi => {
+            // MIDI to frequency: f = 440 * 2^((midi-69)/12)
+            const freq = 440 * Math.pow(2, (midi - 69) / 12);
+            const bin = Math.round(freq / frequencyResolution);
+            return { midi, freq, bin };
+        });
+
+        // Find magnitudes at target bins (with small window)
+        const results = [];
+        let maxMagnitude = -Infinity;
+
+        for (const target of targets) {
+            // Search within ±halfSemitoneBins around target bin
+            let peakMag = -Infinity;
+            let peakBin = target.bin;
+
+            for (let i = Math.max(1, target.bin - halfSemitoneBins); i <= Math.min(fftData.length - 2, target.bin + halfSemitoneBins); i++) {
+                if (fftData[i] > peakMag) {
+                    peakMag = fftData[i];
+                    peakBin = i;
+                }
+            }
+
+            const detectedFreq = peakBin * frequencyResolution;
+            
+            // Store even if below threshold - we'll filter later
+            results.push({
+                midi: target.midi,
+                targetFreq: target.freq,
+                frequency: detectedFreq,
+                magnitude: peakMag,
+                bin: peakBin
+            });
+
+            maxMagnitude = Math.max(maxMagnitude, peakMag);
+        }
+
+        // Filter: ignore signals more than 10dB below top peak
+        // 10dB = 10^(10/20) = 3.16 in linear, so magnitude must be within 10dB of max
+        const dbThreshold = maxMagnitude - 10;
+
+        const validPitches = [];
+        for (const result of results) {
+            // Must be above noise floor and within 10dB of top
+            if (result.magnitude > -70 && result.magnitude >= dbThreshold) {
+                const midi = this.frequencyToMidi(result.frequency);
+                const noteName = this.midiToNoteName(midi);
+                
+                validPitches.push({
+                    frequency: result.frequency,
+                    midi: midi,
+                    noteName: noteName,
+                    confidence: (result.magnitude + 70) / 70 // Normalize to 0-1
+                });
+            }
+        }
+
+        // Sort by magnitude (strongest first)
+        validPitches.sort((a, b) => b.confidence - a.confidence);
+
+        // Limit to maxPitches
+        const limitedPitches = validPitches.slice(0, maxPitches);
+
+        // Update current pitch info
+        if (limitedPitches.length > 0) {
+            this.currentPitch = limitedPitches[0].frequency;
+            this.currentMidi = limitedPitches[0].midi;
+            this.currentNoteName = limitedPitches[0].noteName;
+        } else {
+            this.currentPitch = null;
+            this.currentMidi = null;
+            this.currentNoteName = null;
+        }
+
+        return limitedPitches;
+    }
+
+    /**
      * Find peaks in FFT spectrum
      */
     findSpectrumPeaks(fftData, frequencyResolution) {
