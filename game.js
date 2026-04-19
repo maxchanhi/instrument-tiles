@@ -144,9 +144,12 @@ class InstrumentTilesGame {
         };
         window.addEventListener('resize', debouncedResize);
         window.addEventListener('orientationchange', debouncedResize);
+        // Also handle screen resize specifically for mobile landscape
+        window.addEventListener('screenchange', debouncedResize);
         this.setupEventListeners();
         this.render();
         this.loadDefaultMidi().then(() => {
+            this.initLibrary();
             this.displayLeaderboard();
         });
         
@@ -162,7 +165,10 @@ class InstrumentTilesGame {
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.canvasWidth = rect.width;
         this.canvasHeight = rect.height;
-        this.judgmentLineY = this.canvasHeight - 80;
+        // Responsive judgment line - lower for wider/taller screens
+        const isMobileLandscape = window.innerHeight < 500 && window.innerWidth > window.innerHeight;
+        const judgmentOffset = isMobileLandscape ? 50 : 80;
+        this.judgmentLineY = this.canvasHeight - judgmentOffset;
         if (this.judgmentLineY < 100) this.judgmentLineY = Math.max(this.canvasHeight * 0.8, 50);
     }
 
