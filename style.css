@@ -1555,84 +1555,62 @@ body.light-mode .practice-actions button#practice-exit-btn {
     border-color: rgba(192, 57, 43, 0.3);
 }
 
-/* Responsive */
-@media (max-width: 1024px) {
-    .game-container {
-        flex-direction: column;
-    }
-
-    .info-panel {
-        width: 100%;
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-
-    .info-panel > div {
-        flex: 1;
-        min-width: 150px;
-    }
-    
-    .game-area {
-        min-height: 400px;
-        height: 50vh;
-    }
+/* ========================================
+   BASE STYLES - Mobile Portrait (default)
+   ======================================== */
+.main-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    min-height: 100dvh;
+    overflow: hidden;
 }
 
-@media (max-width: 768px) {
-    header h1 {
-        font-size: 2.5rem;
-    }
-    
-    .controls {
-        padding: 20px;
-    }
-    
-    .control-group {
-        width: 100%;
-    }
-    
-    .control-group select, 
-    .control-group button,
-    .control-group input[type="range"] {
-        width: 100%;
-    }
-
-    .game-area {
-        min-height: 300px;
-        height: 45vh;
-    }
-
-    .info-panel {
-        flex-wrap: wrap;
-    }
-
-    .info-panel > div {
-        flex: 1 1 45%;
-    }
+.container {
+    min-height: 0;
+    overflow-y: auto;
 }
 
-@media (max-width: 480px) {
-    header h1 {
-        font-size: 1.8rem;
-    }
-
-    .game-area {
-        min-height: 250px;
-        height: 40vh;
-    }
-
-    .info-panel > div {
-        flex: 1 1 100%;
-    }
+header h1 {
+    font-size: 1.5rem;
+    margin: 5px 0;
 }
 
-/* Horizontal (landscape) mode for mobile - game area fills screen */
+.game-area {
+    min-height: 300px;
+    height: 45vh;
+    flex: 1;
+}
+
+.controls {
+    padding: 10px;
+}
+
+.control-group {
+    width: 48%;
+}
+
+.info-panel > div {
+    flex: 1 1 45%;
+    min-width: 80px;
+}
+
+.info-panel .pitch-display p {
+    font-size: 1.5rem;
+}
+
+/* ========================================
+   Mobile Landscape - Full screen game
+   ======================================== */
 @media (orientation: landscape) and (max-height: 500px) {
+    body {
+        overflow: hidden;
+    }
+    
     .main-layout {
-        display: flex;
         flex-direction: row;
         height: 100vh;
-        overflow: hidden;
+        height: 100dvh;
     }
     
     .container {
@@ -1643,25 +1621,7 @@ body.light-mode .practice-actions button#practice-exit-btn {
     }
     
     header {
-        flex-shrink: 0;
-        padding: 5px 10px;
-        min-height: auto;
-    }
-    
-    header h1 {
-        font-size: 1.2rem;
-        margin: 0;
-    }
-    
-    .controls {
         display: none;
-    }
-    
-    .game-container {
-        flex: 1;
-        display: flex;
-        min-height: 0;
-        padding: 5px;
     }
     
     .game-main-column {
@@ -1678,16 +1638,109 @@ body.light-mode .practice-actions button#practice-exit-btn {
     }
     
     .navigation-bar {
-        flex-shrink: 0;
-        padding: 5px;
+        display: flex;
+        padding: 3px;
     }
     
-    .info-panel {
-        display: none;
+    .info-panel, .controls, .fingering-display {
+        display: none !important;
     }
     
     #game-canvas {
         width: 100% !important;
         height: 100% !important;
+    }
+}
+
+/* ========================================
+   Larger Mobile (481px+)
+   ======================================== */
+@media (min-width: 481px) {
+    header h1 {
+        font-size: 1.8rem;
+    }
+    
+    .game-area {
+        min-height: 350px;
+        height: 50vh;
+    }
+    
+    .info-panel > div {
+        min-width: 100px;
+    }
+}
+
+/* ========================================
+   Tablet (769px+)
+   ======================================== */
+@media (min-width: 769px) {
+    .game-container {
+        flex-direction: row;
+    }
+    
+    .main-layout {
+        height: auto;
+        min-height: 100vh;
+    }
+    
+    .game-area {
+        min-height: 400px;
+        height: 50vh;
+    }
+    
+    header h1 {
+        font-size: 2.5rem;
+    }
+    
+    .controls {
+        padding: 20px;
+    }
+    
+    .info-panel {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .info-panel > div {
+        flex: 1;
+        min-width: 150px;
+    }
+    
+    .control-group {
+        width: auto;
+    }
+    
+    .control-group select, 
+    .control-group button,
+    .control-group input[type="range"] {
+        width: auto;
+    }
+}
+
+/* ========================================
+   Desktop (1025px+)
+   ======================================== */
+@media (min-width: 1025px) {
+    .main-layout {
+        display: flex;
+        flex-direction: row;
+    }
+    
+    .container {
+        flex: 1;
+    }
+    
+    header h1 {
+        font-size: 3rem;
+    }
+    
+    .game-area {
+        min-height: 500px;
+        height: 60vh;
+    }
+    
+    .controls {
+        padding: 25px;
     }
 }
